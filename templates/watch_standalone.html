@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.VideoTitle}} - Video Tracker</title>
+    
+    <!-- Open Graph Meta Tags for WhatsApp/Social Media -->
+    <meta property="og:title" content="{{.VideoTitle}}" />
+    <meta property="og:type" content="video.other" />
+    <meta property="og:url" content="{{.PageURL}}" />
+    <meta property="og:description" content="Watch {{.VideoTitle}}" />
+    <meta property="og:image" content="{{.VideoThumb}}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    
+    <!-- Video specific tags -->
+    <meta property="og:video" content="{{.VideoURL}}" />
+    <meta property="og:video:url" content="{{.VideoURL}}" />
+    <meta property="og:video:secure_url" content="{{.VideoURL}}" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1280" />
+    <meta property="og:video:height" content="720" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="player" />
+    <meta name="twitter:title" content="{{.VideoTitle}}" />
+    <meta name="twitter:description" content="Watch {{.VideoTitle}}" />
+    <meta name="twitter:image" content="{{.VideoThumb}}" />
+    <meta name="twitter:player" content="{{.PageURL}}" />
+    <meta name="twitter:player:width" content="1280" />
+    <meta name="twitter:player:height" content="720" />
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .video-container {
+            max-width: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .logo-title {
+            margin-bottom: 20px;
+        }
+        .logo-title img {
+            max-width: 200px;
+            height: auto;
+            display: block;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            max-height: 80vh;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <div class="logo-title">
+            <img src="/static/images/logo.png" alt="Logo">
+        </div>
+        <video id="videoPlayer" controls>
+            <source src="{{.VideoURL}}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+<script>
+    const video = document.getElementById('videoPlayer');
+    const sessionId = {{.SessionID}};
+    const watchedSeconds = new Set();
+    let lastTrackedTime = 0;
+    let trackingInterval;
+
+    // Track watched seconds silently
+    video.addEventListener('timeupdate', function() {
+        const currentSecond = Math.floor(video.currentTime);
+        watchedSeconds.add(currentSecond);
+    });
+
+    // Send tracking data every 5 seconds
+    function sendTrackingData() {
+        if (watchedSeconds.size === 0) return;
+
+        const newSeconds = Array.from(watchedSeconds).filter(s => s >= lastTrackedTime);
+        if (newSeconds.length === 0) return;
+
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('played_seconds', JSON.stringify(newSeconds));
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/track', true);
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                lastTrackedTime = Math.max(...newSeconds);
+            }
+        };
+        xhr.send(formData);
+    }
+
+    // Start tracking interval when video plays
+    video.addEventListener('play', function() {
+        trackingInterval = setInterval(sendTrackingData, 5000);
+    });
+
+    // Stop tracking when video pauses
+    video.addEventListener('pause', function() {
+        clearInterval(trackingInterval);
+        sendTrackingData();
+    });
+
+    // Handle page unload
+    function handleUnload() {
+        sendTrackingData();
+        
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('/session/end', formData);
+        } else {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/session/end', false);
+            xhr.send(formData);
+        }
+    }
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('unload', handleUnload);
+
+    // Handle visibility change (tab switching)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            clearInterval(trackingInterval);
+            sendTrackingData();
+        } else if (!video.paused) {
+            trackingInterval = setInterval(sendTrackingData, 5000);
+        }
+    });
+
+    // Handle video end
+    video.addEventListener('ended', function() {
+        clearInterval(trackingInterval);
+        sendTrackingData();
+    });
+</script>
+</body>
+</html>

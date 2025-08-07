@@ -1,0 +1,41 @@
+# Build stage for creating Ubuntu-compatible binary (AMD64)
+FROM --platform=linux/amd64 golang:1.22 AS builder
+
+# Install build dependencies for SQLite
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libc6-dev \
+    libsqlite3-dev \
+    file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY main.go ./
+
+# Build for Linux AMD64 explicitly
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV CGO_ENABLED=1
+
+RUN go build -a -ldflags '-w -s' -o videotracker main.go
+
+# Verify the binary architecture
+RUN file videotracker && echo "Binary architecture verified"
+
+# Create minimal runtime stage (just for extraction)
+FROM --platform=linux/amd64 debian:bookworm-slim AS runtime
+
+# Copy the binary
+COPY --from=builder /app/videotracker /videotracker
+
+# This stage is just for extracting the binary
+ENTRYPOINT ["/videotracker"]

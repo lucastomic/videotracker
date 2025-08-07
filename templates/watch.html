@@ -1,0 +1,131 @@
+{{template "base.html" .}}
+
+{{define "title"}}Watch Video - {{.VideoID}}{{end}}
+
+{{define "head"}}
+    <!-- Open Graph Meta Tags for WhatsApp/Social Media -->
+    <meta property="og:title" content="{{.VideoTitle}}" />
+    <meta property="og:type" content="video.other" />
+    <meta property="og:url" content="{{.PageURL}}" />
+    <meta property="og:description" content="Watch {{.VideoTitle}} on Video Tracker" />
+    <meta property="og:image" content="{{.VideoThumb}}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    
+    <!-- Video specific tags -->
+    <meta property="og:video" content="{{.VideoURL}}" />
+    <meta property="og:video:url" content="{{.VideoURL}}" />
+    <meta property="og:video:secure_url" content="{{.VideoURL}}" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1280" />
+    <meta property="og:video:height" content="720" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="player" />
+    <meta name="twitter:title" content="{{.VideoTitle}}" />
+    <meta name="twitter:description" content="Watch {{.VideoTitle}} on Video Tracker" />
+    <meta name="twitter:image" content="{{.VideoThumb}}" />
+    <meta name="twitter:player" content="{{.PageURL}}" />
+    <meta name="twitter:player:width" content="1280" />
+    <meta name="twitter:player:height" content="720" />
+{{end}}
+
+{{define "content"}}
+<div class="container">
+    <h1>Video Player</h1>
+    <div class="video-container">
+        <video id="videoPlayer" controls>
+            <source src="/static/videos/{{.VideoID}}.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        
+        <div class="info">
+            <p><strong>User ID:</strong> {{.UserID}}</p>
+            <p><strong>Video ID:</strong> {{.VideoID}}</p>
+            <p><strong>Session ID:</strong> {{.SessionID}}</p>
+            <p><strong>Status:</strong> <span id="status" class="status active">Active</span></p>
+            <p><strong>Watched Seconds:</strong> <span id="watchedCount">0</span></p>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    const video = document.getElementById('videoPlayer');
+    const sessionId = {{.SessionID}};
+    const watchedSeconds = new Set();
+    let lastTrackedTime = 0;
+    let trackingInterval;
+
+    // Track watched seconds
+    video.addEventListener('timeupdate', function() {
+        const currentSecond = Math.floor(video.currentTime);
+        watchedSeconds.add(currentSecond);
+        document.getElementById('watchedCount').textContent = watchedSeconds.size;
+    });
+
+    // Send tracking data every 5 seconds
+    function sendTrackingData() {
+        if (watchedSeconds.size === 0) return;
+
+        const newSeconds = Array.from(watchedSeconds).filter(s => s >= lastTrackedTime);
+        if (newSeconds.length === 0) return;
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('played_seconds', JSON.stringify(newSeconds));
+
+        // Use HTMX to send the data
+        htmx.ajax('POST', '/track', {
+            values: {
+                session_id: sessionId,
+                played_seconds: JSON.stringify(newSeconds)
+            }
+        });
+
+        lastTrackedTime = Math.max(...newSeconds);
+    }
+
+    // Start tracking interval when video plays
+    video.addEventListener('play', function() {
+        trackingInterval = setInterval(sendTrackingData, 5000);
+    });
+
+    // Stop tracking when video pauses
+    video.addEventListener('pause', function() {
+        clearInterval(trackingInterval);
+        sendTrackingData(); // Send any pending data
+    });
+
+    // Handle page unload
+    function handleUnload() {
+        // Send final tracking data
+        sendTrackingData();
+        
+        // Mark session as ended
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        
+        // Use sendBeacon for reliable unload tracking
+        navigator.sendBeacon('/session/end', formData);
+        
+        document.getElementById('status').textContent = 'Ended';
+        document.getElementById('status').className = 'status ended';
+    }
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('unload', handleUnload);
+
+    // Also handle visibility change (tab switching)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            clearInterval(trackingInterval);
+            sendTrackingData();
+        } else if (!video.paused) {
+            trackingInterval = setInterval(sendTrackingData, 5000);
+        }
+    });
+</script>
+{{end}}

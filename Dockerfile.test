@@ -1,0 +1,21 @@
+# Test Ubuntu compatibility
+FROM ubuntu:22.04
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    lsof \
+    curl \
+    file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the Linux binary for testing
+COPY videotracker-linux /opt/videotracker/videotracker
+COPY templates /opt/videotracker/templates
+COPY static /opt/videotracker/static
+
+# Set permissions
+RUN chmod +x /opt/videotracker/videotracker
+
+# Test the binary
+WORKDIR /opt/videotracker
+CMD ["./videotracker"]

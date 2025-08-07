@@ -1,0 +1,99 @@
+{{template "base.html" .}}
+
+{{define "title"}}Admin - Video Analytics{{end}}
+
+{{define "content"}}
+<div class="container">
+    <h1>Video Analytics Dashboard</h1>
+    
+    <div style="margin-bottom: 20px; padding: 15px; background-color: #e8f4f8; border-radius: 4px;">
+        <p style="margin: 0;"><strong>Total Sessions:</strong> {{len .}} | <strong>Auto-refresh:</strong> Every 10 seconds</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Session ID</th>
+                <th>User ID</th>
+                <th>Video ID</th>
+                <th>IP Address</th>
+                <th>Entered At</th>
+                <th>Left At</th>
+                <th>Duration</th>
+                <th>Time Watched</th>
+                <th>Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .}}
+            <tr>
+                <td>#{{.ID}}</td>
+                <td><strong>{{.UserID}}</strong></td>
+                <td>{{.VideoID}}</td>
+                <td style="font-family: monospace;">{{if .IPAddress}}{{.IPAddress}}{{else}}-{{end}}</td>
+                <td>{{.EnteredAt.Format "2006-01-02 15:04:05"}}</td>
+                <td>
+                    {{if .LeftAt}}
+                        {{.LeftAt.Format "2006-01-02 15:04:05"}}
+                    {{else}}
+                        <em style="color: #666;">Still watching</em>
+                    {{end}}
+                </td>
+                <td>
+                    {{if .LeftAt}}
+                        {{.LeftAt.Sub .EnteredAt}}
+                    {{else}}
+                        -
+                    {{end}}
+                </td>
+                <td>
+                    <strong>{{.TotalTimeWatched}}s</strong>
+                </td>
+                <td>
+                    {{if .LeftAt}}
+                        <span class="status ended">Ended</span>
+                    {{else}}
+                        <span class="status active">Active</span>
+                    {{end}}
+                </td>
+                <td>
+                    <details>
+                        <summary style="cursor: pointer;">View Details</summary>
+                        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;">
+                            <p style="margin: 5px 0;"><strong>Watched seconds ({{len .PlayedSeconds}} bytes):</strong></p>
+                            <pre style="max-height: 200px; overflow-y: auto; background-color: white; padding: 10px; border-radius: 4px; font-size: 12px;">{{.PlayedSeconds}}</pre>
+                        </div>
+                    </details>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="10" style="text-align: center; padding: 40px;">
+                    No sessions recorded yet. Visit <a href="/watch?user_id=test123&video_id=boatexperience">/watch?user_id=test123&video_id=boatexperience</a> to start tracking.
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
+        <h3>Quick Links</h3>
+        <p>Test the video tracking with these sample URLs:</p>
+        <ul>
+            <li><a href="/watch?user_id=user001&video_id=boatexperience">/watch?user_id=user001&video_id=boatexperience</a></li>
+            <li><a href="/watch?user_id=user002&video_id=boatexperience">/watch?user_id=user002&video_id=boatexperience</a></li>
+            <li><a href="/watch?user_id=test123&video_id=boatexperience">/watch?user_id=test123&video_id=boatexperience</a></li>
+        </ul>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    // Auto-refresh the page every 10 seconds to see updates
+    setTimeout(function() {
+        location.reload();
+    }, 10000);
+</script>
+{{end}}

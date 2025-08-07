@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  videotracker:
+    build: .
+    container_name: videotracker
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persist database in local data directory
+      - ./data:/app/data
+      # Optional: mount custom static files (uncomment if needed)
+      # - ./static:/app/static
+      # Optional: mount custom templates (uncomment if needed) 
+      # - ./templates:/app/templates
+    environment:
+      - DB_PATH=/app/data/video_tracker.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - videotracker-network
+
+networks:
+  videotracker-network:
+    driver: bridge

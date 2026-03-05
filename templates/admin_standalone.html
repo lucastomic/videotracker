@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Video Analytics</title>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -56,36 +55,127 @@
             background-color: #f8d7da;
             color: #721c24;
         }
+        .btn {
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 4px;
+            font-size: 12px;
+        }
+        .btn-edit { background-color: #28a745; }
+        .btn-delete { background-color: #dc3545; }
+        .btn-copy { background-color: #17a2b8; }
+        .btn-submit {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .input-field {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+        .upload-area {
+            margin-bottom: 10px;
+            padding: 15px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            text-align: center;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #e8f4f8;
+        }
+        .progress-bar-container {
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s;
+            text-align: center;
+            color: white;
+            font-size: 11px;
+            line-height: 20px;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Video Analytics Dashboard</h1>
-    
-    <div style="margin-bottom: 20px; padding: 15px; background-color: #e8f4f8; border-radius: 4px;">
-        <p style="margin: 0;"><strong>Total Sessions:</strong> {{len .Sessions}} | <strong>Total Videos:</strong> {{len .Videos}} | <strong>Auto-refresh:</strong> Every 10 seconds</p>
+
+    <div id="stats-bar" style="margin-bottom: 20px; padding: 15px; background-color: #e8f4f8; border-radius: 4px;">
+        <p style="margin: 0;"><strong>Total Sessions:</strong> <span id="total-sessions">{{len .Sessions}}</span> | <strong>Total Videos:</strong> <span id="total-videos">{{len .Videos}}</span> | <strong>Auto-refresh:</strong> Every 10s <span id="refresh-status" style="color: #28a745;">(active)</span></p>
     </div>
-    
+
     <!-- Video Management Section -->
     <div style="margin-bottom: 30px;">
         <h2>Video Management</h2>
-        
+
         <!-- Add Video Form -->
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
             <h3>Add New Video</h3>
             <form id="addVideoForm">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                    <input type="text" id="videoId" placeholder="Video ID" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <input type="text" id="videoTitle" placeholder="Title" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <input type="text" id="videoId" placeholder="Video ID" required class="input-field">
+                    <input type="text" id="videoTitle" placeholder="Title" required class="input-field">
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px;">
-                    <input type="url" id="videoUrl" placeholder="Video URL (e.g., S3, CDN)" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <input type="url" id="videoThumb" placeholder="Thumbnail URL (optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <input type="url" id="videoUrl" placeholder="Video URL (e.g., S3, CDN)" required class="input-field">
+                    <input type="url" id="videoThumb" placeholder="Thumbnail URL (optional)" class="input-field">
                 </div>
-                <button type="submit" style="background-color: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; width: 100%;">Add Video</button>
+                {{if .S3Enabled}}
+                <div class="upload-area" id="uploadArea">
+                    <p style="margin: 0 0 10px 0; color: #666;">Or upload a video file directly to S3:</p>
+                    <input type="file" id="videoFile" accept="video/*" style="display: none;" onchange="handleFileSelect(this)">
+                    <button type="button" onclick="document.getElementById('videoFile').click()" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        Choose Video File
+                    </button>
+                    <p id="selectedFileName" style="margin: 5px 0 0 0; font-size: 12px; color: #999;"></p>
+                    <div id="uploadProgress" style="display: none; margin-top: 10px;">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progressBar">0%</div>
+                        </div>
+                        <p id="uploadStatus" style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Uploading...</p>
+                    </div>
+                </div>
+                {{end}}
+                <button type="submit" class="btn-submit">Add Video</button>
             </form>
         </div>
-        
+
         <!-- Videos Table -->
         <table>
             <thead>
@@ -98,7 +188,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="videos-table-body">
                 {{range .Videos}}
                 <tr>
                     <td>#{{.ID}}</td>
@@ -106,9 +196,10 @@
                     <td>{{.Title}}</td>
                     <td style="font-family: monospace; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{.URL}}">{{.URL}}</td>
                     <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-                    <td>
-                        <button onclick="editVideo('{{.VideoID}}', '{{.Title}}', '{{.URL}}', '{{.Thumbnail}}')" style="background-color: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Edit</button>
-                        <button onclick="deleteVideo('{{.VideoID}}')" style="background-color: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Delete</button>
+                    <td style="white-space: nowrap;">
+                        <button onclick="copyWatchLink('{{.VideoID}}')" id="copy-btn-{{.VideoID}}" class="btn btn-copy">Copy Link</button>
+                        <button onclick="editVideo('{{.VideoID}}', '{{.Title}}', '{{.URL}}', '{{.Thumbnail}}')" class="btn btn-edit">Edit</button>
+                        <button onclick="deleteVideo('{{.VideoID}}')" class="btn btn-delete">Delete</button>
                     </td>
                 </tr>
                 {{else}}
@@ -119,9 +210,9 @@
             </tbody>
         </table>
     </div>
-    
+
     <h2>Session Analytics</h2>
-    
+
     <table>
         <thead>
             <tr>
@@ -137,7 +228,7 @@
                 <th>Details</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="sessions-table-body">
             {{range .Sessions}}
             <tr>
                 <td>#{{.ID}}</td>
@@ -182,13 +273,13 @@
             {{else}}
             <tr>
                 <td colspan="10" style="text-align: center; padding: 40px;">
-                    No sessions recorded yet. Visit <a href="/watch?user_id=test123&video_id=boatexperience">/watch?user_id=test123&video_id=boatexperience</a> to start tracking.
+                    No sessions recorded yet. Visit <a href="/watch?video_id=boatexperience">/watch?video_id=boatexperience</a> to start tracking.
                 </td>
             </tr>
             {{end}}
         </tbody>
     </table>
-    
+
     <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
         <h3>Quick Links</h3>
         <p>Test the video tracking with these sample URLs:</p>
@@ -200,21 +291,220 @@
     </div>
 </div>
 
+<!-- Toast notification -->
+<div id="toast" class="toast"></div>
+
 <script>
-    // Video Management Functions
+    // ========== Toast Notifications ==========
+    function showToast(message, type) {
+        var toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast ' + type + ' show';
+        setTimeout(function() {
+            toast.className = 'toast';
+        }, 3000);
+    }
+
+    // ========== AJAX Polling (replaces location.reload) ==========
+    var isFormFocused = false;
+    var pollTimer = null;
+
+    // Detect form focus to pause polling
+    var form = document.getElementById('addVideoForm');
+    form.addEventListener('focusin', function() {
+        isFormFocused = true;
+        document.getElementById('refresh-status').textContent = '(paused - editing form)';
+        document.getElementById('refresh-status').style.color = '#ffc107';
+    });
+    form.addEventListener('focusout', function() {
+        // Small debounce for tabbing between fields
+        setTimeout(function() {
+            if (!form.contains(document.activeElement)) {
+                isFormFocused = false;
+                document.getElementById('refresh-status').textContent = '(active)';
+                document.getElementById('refresh-status').style.color = '#28a745';
+            }
+        }, 200);
+    });
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var pad = function(n) { return n < 10 ? '0' + n : n; };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+               pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+
+    function formatDateShort(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var pad = function(n) { return n < 10 ? '0' + n : n; };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+               pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function formatDuration(enteredAt, leftAt) {
+        if (!leftAt) return '-';
+        var ms = new Date(leftAt) - new Date(enteredAt);
+        var totalSec = Math.floor(ms / 1000);
+        var h = Math.floor(totalSec / 3600);
+        var m = Math.floor((totalSec % 3600) / 60);
+        var s = totalSec % 60;
+        if (h > 0) return h + 'h' + m + 'm' + s + 's';
+        if (m > 0) return m + 'm' + s + 's';
+        return s + 's';
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function renderVideosTable(videos) {
+        var tbody = document.getElementById('videos-table-body');
+        if (!videos || videos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">No videos found. Add your first video above.</td></tr>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < videos.length; i++) {
+            var v = videos[i];
+            html += '<tr>' +
+                '<td>#' + v.id + '</td>' +
+                '<td><strong>' + escapeHtml(v.video_id) + '</strong></td>' +
+                '<td>' + escapeHtml(v.title) + '</td>' +
+                '<td style="font-family: monospace; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapeHtml(v.url) + '">' + escapeHtml(v.url) + '</td>' +
+                '<td>' + formatDateShort(v.created_at) + '</td>' +
+                '<td style="white-space: nowrap;">' +
+                    '<button onclick="copyWatchLink(\'' + escapeHtml(v.video_id) + '\')" id="copy-btn-' + escapeHtml(v.video_id) + '" class="btn btn-copy">Copy Link</button>' +
+                    '<button onclick="editVideo(\'' + escapeHtml(v.video_id) + '\', \'' + escapeHtml(v.title).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.url).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.thumbnail || '').replace(/'/g, "\\'") + '\')" class="btn btn-edit">Edit</button>' +
+                    '<button onclick="deleteVideo(\'' + escapeHtml(v.video_id) + '\')" class="btn btn-delete">Delete</button>' +
+                '</td>' +
+                '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderSessionsTable(sessions) {
+        var tbody = document.getElementById('sessions-table-body');
+        if (!sessions || sessions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px;">No sessions recorded yet.</td></tr>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < sessions.length; i++) {
+            var s = sessions[i];
+            var leftAtStr = s.left_at ? formatDate(s.left_at) : '<em style="color: #666;">Still watching</em>';
+            var duration = formatDuration(s.entered_at, s.left_at);
+            var statusClass = s.left_at ? 'ended' : 'active';
+            var statusText = s.left_at ? 'Ended' : 'Active';
+            var playedStr = typeof s.played_seconds === 'string' ? s.played_seconds : JSON.stringify(s.played_seconds);
+            var playedLen = playedStr ? playedStr.length : 0;
+
+            html += '<tr>' +
+                '<td>#' + s.id + '</td>' +
+                '<td><strong>' + escapeHtml(s.user_id) + '</strong></td>' +
+                '<td>' + escapeHtml(s.video_id) + '</td>' +
+                '<td style="font-family: monospace;">' + (s.ip_address ? escapeHtml(s.ip_address) : '-') + '</td>' +
+                '<td>' + formatDate(s.entered_at) + '</td>' +
+                '<td>' + leftAtStr + '</td>' +
+                '<td>' + duration + '</td>' +
+                '<td><strong>' + s.total_time_watched + 's</strong></td>' +
+                '<td><span class="status ' + statusClass + '">' + statusText + '</span></td>' +
+                '<td><details><summary style="cursor: pointer;">View Details</summary>' +
+                    '<div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;">' +
+                    '<p style="margin: 5px 0;"><strong>Watched seconds (' + playedLen + ' bytes):</strong></p>' +
+                    '<pre style="max-height: 200px; overflow-y: auto; background-color: white; padding: 10px; border-radius: 4px; font-size: 12px;">' + escapeHtml(playedStr) + '</pre>' +
+                    '</div></details></td>' +
+                '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function refreshData() {
+        if (isFormFocused) {
+            pollTimer = setTimeout(refreshData, 10000);
+            return;
+        }
+
+        fetch('/api/admin/data')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                renderVideosTable(data.videos);
+                renderSessionsTable(data.sessions);
+                document.getElementById('total-sessions').textContent = data.sessions ? data.sessions.length : 0;
+                document.getElementById('total-videos').textContent = data.videos ? data.videos.length : 0;
+            })
+            .catch(function(err) {
+                console.error('Failed to refresh data:', err);
+            })
+            .finally(function() {
+                pollTimer = setTimeout(refreshData, 10000);
+            });
+    }
+
+    // Start polling
+    pollTimer = setTimeout(refreshData, 10000);
+
+    // ========== Copy Watch Link ==========
+    function copyWatchLink(videoId) {
+        var url = window.location.protocol + '//' + window.location.host + '/watch?video_id=' + encodeURIComponent(videoId);
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+                showCopyFeedback(videoId);
+            }).catch(function() {
+                fallbackCopy(url, videoId);
+            });
+        } else {
+            fallbackCopy(url, videoId);
+        }
+    }
+
+    function fallbackCopy(text, videoId) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showCopyFeedback(videoId);
+        } catch (e) {
+            showToast('Failed to copy link', 'error');
+        }
+        document.body.removeChild(textarea);
+    }
+
+    function showCopyFeedback(videoId) {
+        var btn = document.getElementById('copy-btn-' + videoId);
+        if (btn) {
+            var originalText = btn.textContent;
+            var originalBg = btn.style.backgroundColor;
+            btn.textContent = 'Copied!';
+            btn.style.backgroundColor = '#28a745';
+            setTimeout(function() {
+                btn.textContent = originalText;
+                btn.style.backgroundColor = originalBg;
+            }, 2000);
+        }
+        showToast('Link copied to clipboard', 'success');
+    }
+
+    // ========== Video CRUD ==========
     document.getElementById('addVideoForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        
-        const videoId = document.getElementById('videoId').value;
-        const videoTitle = document.getElementById('videoTitle').value;
-        const videoUrl = document.getElementById('videoUrl').value;
-        const videoThumb = document.getElementById('videoThumb').value;
-        
+
+        var videoId = document.getElementById('videoId').value;
+        var videoTitle = document.getElementById('videoTitle').value;
+        var videoUrl = document.getElementById('videoUrl').value;
+        var videoThumb = document.getElementById('videoThumb').value;
+
         fetch('/api/videos', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 video_id: videoId,
                 title: videoTitle,
@@ -222,84 +512,198 @@
                 thumbnail: videoThumb
             })
         })
-        .then(response => {
+        .then(function(response) {
             if (response.ok) {
-                alert('Video added successfully!');
-                location.reload();
+                showToast('Video added successfully!', 'success');
+                document.getElementById('addVideoForm').reset();
+                // Reset upload UI if present
+                var selectedFile = document.getElementById('selectedFileName');
+                if (selectedFile) selectedFile.textContent = '';
+                var uploadProgress = document.getElementById('uploadProgress');
+                if (uploadProgress) uploadProgress.style.display = 'none';
+                // Refresh tables immediately
+                refreshDataNow();
             } else {
-                return response.text().then(text => {
-                    alert('Error: ' + text);
+                return response.text().then(function(text) {
+                    showToast('Error: ' + text, 'error');
                 });
             }
         })
-        .catch(error => {
-            alert('Error: ' + error.message);
+        .catch(function(error) {
+            showToast('Error: ' + error.message, 'error');
         });
     });
-    
+
     function editVideo(videoId, currentTitle, currentUrl, currentThumb) {
-        const newTitle = prompt('Enter new title:', currentTitle);
+        var newTitle = prompt('Enter new title:', currentTitle);
         if (newTitle === null) return;
-        
-        const newUrl = prompt('Enter new URL:', currentUrl);
+
+        var newUrl = prompt('Enter new URL:', currentUrl);
         if (newUrl === null) return;
-        
-        const newThumb = prompt('Enter new thumbnail URL:', currentThumb);
+
+        var newThumb = prompt('Enter new thumbnail URL:', currentThumb);
         if (newThumb === null) return;
-        
+
         fetch('/api/videos/' + videoId, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: newTitle,
                 url: newUrl,
                 thumbnail: newThumb
             })
         })
-        .then(response => {
+        .then(function(response) {
             if (response.ok) {
-                alert('Video updated successfully!');
-                location.reload();
+                showToast('Video updated successfully!', 'success');
+                refreshDataNow();
             } else {
-                return response.text().then(text => {
-                    alert('Error: ' + text);
+                return response.text().then(function(text) {
+                    showToast('Error: ' + text, 'error');
                 });
             }
         })
-        .catch(error => {
-            alert('Error: ' + error.message);
+        .catch(function(error) {
+            showToast('Error: ' + error.message, 'error');
         });
     }
-    
+
     function deleteVideo(videoId) {
         if (!confirm('Are you sure you want to delete video "' + videoId + '"? This action cannot be undone.')) {
             return;
         }
-        
+
         fetch('/api/videos/' + videoId, {
             method: 'DELETE'
         })
-        .then(response => {
+        .then(function(response) {
             if (response.ok || response.status === 204) {
-                alert('Video deleted successfully!');
-                location.reload();
+                showToast('Video deleted successfully!', 'success');
+                refreshDataNow();
             } else {
-                return response.text().then(text => {
-                    alert('Error: ' + text);
+                return response.text().then(function(text) {
+                    showToast('Error: ' + text, 'error');
                 });
             }
         })
-        .catch(error => {
-            alert('Error: ' + error.message);
+        .catch(function(error) {
+            showToast('Error: ' + error.message, 'error');
         });
     }
 
-    // Auto-refresh the page every 10 seconds to see updates
-    setTimeout(function() {
-        location.reload();
-    }, 10000);
+    // Immediate refresh (cancel pending timer and refresh now)
+    function refreshDataNow() {
+        if (pollTimer) clearTimeout(pollTimer);
+        fetch('/api/admin/data')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                renderVideosTable(data.videos);
+                renderSessionsTable(data.sessions);
+                document.getElementById('total-sessions').textContent = data.sessions ? data.sessions.length : 0;
+                document.getElementById('total-videos').textContent = data.videos ? data.videos.length : 0;
+            })
+            .catch(function(err) {
+                console.error('Failed to refresh data:', err);
+            })
+            .finally(function() {
+                pollTimer = setTimeout(refreshData, 10000);
+            });
+    }
+
+    // ========== S3 Upload ==========
+    {{if .S3Enabled}}
+    // Drag and drop support
+    var uploadArea = document.getElementById('uploadArea');
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', function() {
+        uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            document.getElementById('videoFile').files = e.dataTransfer.files;
+            handleFileSelect(document.getElementById('videoFile'));
+        }
+    });
+
+    function handleFileSelect(input) {
+        var file = input.files[0];
+        if (!file) return;
+
+        document.getElementById('selectedFileName').textContent = file.name + ' (' + formatSize(file.size) + ')';
+
+        // Get presigned URL
+        fetch('/api/upload/presign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename: file.name,
+                content_type: file.type || 'video/mp4'
+            })
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error('Failed to get upload URL');
+            return response.json();
+        })
+        .then(function(presignData) {
+            document.getElementById('uploadProgress').style.display = 'block';
+            return uploadToS3(presignData.presigned_url, file, presignData.object_url);
+        })
+        .catch(function(err) {
+            showToast('Upload error: ' + err.message, 'error');
+            document.getElementById('uploadProgress').style.display = 'none';
+        });
+    }
+
+    function uploadToS3(presignedUrl, file, objectUrl) {
+        return new Promise(function(resolve, reject) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    var percent = Math.round((e.loaded / e.total) * 100);
+                    var bar = document.getElementById('progressBar');
+                    bar.style.width = percent + '%';
+                    bar.textContent = percent + '%';
+                    document.getElementById('uploadStatus').textContent =
+                        'Uploading... ' + formatSize(e.loaded) + ' / ' + formatSize(e.total);
+                }
+            });
+
+            xhr.addEventListener('load', function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    document.getElementById('uploadStatus').textContent = 'Upload complete!';
+                    document.getElementById('progressBar').style.backgroundColor = '#28a745';
+                    // Auto-fill the Video URL field
+                    document.getElementById('videoUrl').value = objectUrl;
+                    showToast('Video uploaded to S3 successfully!', 'success');
+                    resolve();
+                } else {
+                    reject(new Error('Upload failed with status ' + xhr.status));
+                }
+            });
+
+            xhr.addEventListener('error', function() {
+                reject(new Error('Network error during upload'));
+            });
+
+            xhr.open('PUT', presignedUrl);
+            xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+            xhr.send(file);
+        });
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(1) + ' GB';
+    }
+    {{end}}
 </script>
 </body>
 </html>

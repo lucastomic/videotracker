@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -37,6 +41,10 @@ type Video struct {
 
 var db *sql.DB
 var templates *template.Template
+var s3Client *s3.Client
+var s3Bucket string
+var s3Region string
+var s3Enabled bool
 
 // loggingMiddleware logs all HTTP requests
 func loggingMiddleware(handler http.HandlerFunc) http.HandlerFunc {
@@ -92,6 +100,30 @@ func main() {
 	// Create tables
 	createTables()
 
+	// Initialize S3 client if configured
+	s3Bucket = os.Getenv("S3_BUCKET")
+	s3Region = os.Getenv("S3_REGION")
+	awsAccessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	awsSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+	if s3Bucket != "" && s3Region != "" && awsAccessKey != "" && awsSecretKey != "" {
+		cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+			awsconfig.WithRegion(s3Region),
+			awsconfig.WithCredentialsProvider(
+				credentials.NewStaticCredentialsProvider(awsAccessKey, awsSecretKey, ""),
+			),
+		)
+		if err != nil {
+			log.Printf("WARNING: Failed to configure AWS: %v", err)
+		} else {
+			s3Client = s3.NewFromConfig(cfg)
+			s3Enabled = true
+			log.Printf("S3 upload enabled - Bucket: %s, Region: %s", s3Bucket, s3Region)
+		}
+	} else {
+		log.Println("S3 upload disabled - missing environment variables (S3_BUCKET, S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)")
+	}
+
 	// Parse templates
 	templates = template.Must(template.ParseGlob("templates/*.html"))
 
@@ -105,6 +137,12 @@ func main() {
 	// Video management API endpoints
 	http.HandleFunc("/api/videos", loggingMiddleware(handleVideos))
 	http.HandleFunc("/api/videos/", loggingMiddleware(handleVideoByID))
+
+	// Admin data API (for AJAX polling)
+	http.HandleFunc("/api/admin/data", loggingMiddleware(handleAdminData))
+
+	// S3 upload endpoints
+	http.HandleFunc("/api/upload/presign", loggingMiddleware(handlePresignUpload))
 
 	// Serve static files
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -188,10 +226,15 @@ func handleWatch(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("user_id")
 	videoID := r.URL.Query().Get("video_id")
 
-	if userID == "" || videoID == "" {
-		log.Printf("ERROR: Missing parameters - user_id: %s, video_id: %s", userID, videoID)
-		http.Error(w, "Missing user_id or video_id", http.StatusBadRequest)
+	if videoID == "" {
+		log.Printf("ERROR: Missing video_id parameter")
+		http.Error(w, "Missing video_id", http.StatusBadRequest)
 		return
+	}
+
+	// Default user_id to anonymous + IP if not provided
+	if userID == "" {
+		userID = "anonymous-" + getClientIP(r)
 	}
 
 	// Get client IP
@@ -448,11 +491,13 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Loaded %d sessions and %d videos for admin dashboard", len(sessions), len(videos))
 
 	data := struct {
-		Sessions []Session
-		Videos   []Video
+		Sessions  []Session
+		Videos    []Video
+		S3Enabled bool
 	}{
-		Sessions: sessions,
-		Videos:   videos,
+		Sessions:  sessions,
+		Videos:    videos,
+		S3Enabled: s3Enabled,
 	}
 
 	err = templates.ExecuteTemplate(w, "admin_standalone.html", data)
@@ -624,12 +669,144 @@ func deleteVideo(w http.ResponseWriter, r *http.Request, videoID string) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		http.Error(w, "Video not found", http.StatusNotFound)
 		return
 	}
-	
+
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleAdminData returns admin dashboard data as JSON for AJAX polling
+func handleAdminData(w http.ResponseWriter, r *http.Request) {
+	// Get sessions
+	rows, err := db.Query(`
+		SELECT id, user_id, video_id, COALESCE(ip_address, '') as ip_address,
+		       entered_at, left_at, total_time_watched, played_seconds
+		FROM sessions
+		ORDER BY entered_at DESC
+		LIMIT 100
+	`)
+	if err != nil {
+		log.Printf("ERROR: Failed to query sessions: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var s Session
+		var leftAt sql.NullTime
+		var playedSecondsStr string
+
+		err := rows.Scan(&s.ID, &s.UserID, &s.VideoID, &s.IPAddress, &s.EnteredAt, &leftAt, &s.TotalTimeWatched, &playedSecondsStr)
+		if err != nil {
+			log.Printf("WARNING: Failed to scan row: %v", err)
+			continue
+		}
+
+		if leftAt.Valid {
+			s.LeftAt = &leftAt.Time
+		}
+		s.PlayedSeconds = json.RawMessage(playedSecondsStr)
+		sessions = append(sessions, s)
+	}
+
+	// Get videos
+	videoRows, err := db.Query("SELECT id, video_id, title, url, COALESCE(thumbnail, ''), created_at, updated_at FROM videos ORDER BY created_at DESC")
+	if err != nil {
+		log.Printf("ERROR: Failed to query videos: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer videoRows.Close()
+
+	var videos []Video
+	for videoRows.Next() {
+		var v Video
+		err := videoRows.Scan(&v.ID, &v.VideoID, &v.Title, &v.URL, &v.Thumbnail, &v.CreatedAt, &v.UpdatedAt)
+		if err != nil {
+			log.Printf("WARNING: Failed to scan video row: %v", err)
+			continue
+		}
+		videos = append(videos, v)
+	}
+
+	resp := struct {
+		Sessions  []Session `json:"sessions"`
+		Videos    []Video   `json:"videos"`
+		S3Enabled bool      `json:"s3_enabled"`
+	}{
+		Sessions:  sessions,
+		Videos:    videos,
+		S3Enabled: s3Enabled,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// handlePresignUpload generates a presigned S3 PUT URL for direct browser upload
+func handlePresignUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !s3Enabled {
+		http.Error(w, "S3 upload not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.Filename == "" {
+		http.Error(w, "filename is required", http.StatusBadRequest)
+		return
+	}
+	if req.ContentType == "" {
+		req.ContentType = "video/mp4"
+	}
+
+	// Generate unique S3 key
+	objectKey := fmt.Sprintf("videos/%d-%s", time.Now().UnixNano(), req.Filename)
+
+	// Create presigned PUT URL
+	presignClient := s3.NewPresignClient(s3Client)
+	presignResult, err := presignClient.PresignPutObject(r.Context(), &s3.PutObjectInput{
+		Bucket:      &s3Bucket,
+		Key:         &objectKey,
+		ContentType: &req.ContentType,
+	}, s3.WithPresignExpires(15*time.Minute))
+	if err != nil {
+		log.Printf("ERROR: Failed to create presigned URL: %v", err)
+		http.Error(w, "Failed to create upload URL", http.StatusInternalServerError)
+		return
+	}
+
+	// Build the final object URL
+	objectURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", s3Bucket, s3Region, objectKey)
+
+	resp := struct {
+		PresignedURL string `json:"presigned_url"`
+		ObjectURL    string `json:"object_url"`
+		ExpiresIn    int    `json:"expires_in"`
+	}{
+		PresignedURL: presignResult.URL,
+		ObjectURL:    objectURL,
+		ExpiresIn:    900,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }

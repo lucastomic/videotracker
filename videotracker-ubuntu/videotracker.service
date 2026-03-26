@@ -1,0 +1,32 @@
+[Unit]
+Description=Video Tracker Service
+Documentation=https://github.com/lucastomic/videotracker
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=videotracker
+Group=videotracker
+WorkingDirectory=/opt/videotracker
+ExecStart=/opt/videotracker/videotracker
+Restart=always
+RestartSec=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/videotracker
+
+# Environment
+Environment=PORT=8080
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=videotracker
+
+[Install]
+WantedBy=multi-user.target

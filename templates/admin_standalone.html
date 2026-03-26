@@ -3,150 +3,495 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Video Analytics</title>
+    <title>Solnow - Video Analytics</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            padding: 0;
+            background-color: #eef2f5;
+            color: #2c3e50;
         }
+
+        /* ===== Header ===== */
+        .top-header {
+            background: linear-gradient(135deg, #083954 0%, #106695 100%);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(8,57,84,0.3);
+        }
+        .top-header img {
+            height: 36px;
+            width: auto;
+        }
+        .top-header h1 {
+            color: #f7f7f7;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+
+        /* ===== Layout ===== */
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 24px;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card h2 {
+            color: #083954;
+            font-size: 18px;
+            margin: 0 0 16px 0;
+            font-weight: 600;
+        }
+
+        /* ===== Stats Bar ===== */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .stat-item {
+            background: white;
+            border-radius: 10px;
+            padding: 16px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            flex: 1;
+            min-width: 160px;
+        }
+        .stat-item .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .stat-item .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #083954;
+        }
+        .stat-item .stat-sub {
+            font-size: 11px;
+            color: #4A90C0;
+            margin-top: 2px;
+        }
+
+        /* ===== Tables ===== */
+        .table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
+            font-size: 13px;
         }
         th {
-            background-color: #f8f9fa;
+            background-color: #083954;
+            color: #f7f7f7;
             font-weight: 600;
+            text-align: left;
+            padding: 10px 12px;
+            white-space: nowrap;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
-        tr:hover {
-            background-color: #f8f9fa;
+        th:first-child { border-radius: 6px 0 0 0; }
+        th:last-child { border-radius: 0 6px 0 0; }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eef2f5;
+            vertical-align: middle;
         }
-        .status {
+        tr:nth-child(even) { background-color: #f8fafb; }
+        tr:hover { background-color: #e8f0f5; }
+
+        /* ===== Badges ===== */
+        .badge {
             display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+        .badge.active {
+            background-color: #d6eef8;
+            color: #106695;
+        }
+        .badge.ended {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-block;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
             font-size: 12px;
             font-weight: 500;
-        }
-        .status.active {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status.ended {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .btn {
+            transition: all 0.15s ease;
             color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 4px;
-            font-size: 12px;
         }
-        .btn-edit { background-color: #28a745; }
-        .btn-delete { background-color: #dc3545; }
-        .btn-copy { background-color: #17a2b8; }
+        .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        .btn-primary { background-color: #106695; }
+        .btn-copy { background-color: #4A90C0; }
+        .btn-edit { background-color: #106695; }
+        .btn-delete { background-color: #c0392b; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
         .btn-submit {
-            background-color: #007bff;
+            background-color: #106695;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 6px;
             cursor: pointer;
             width: 100%;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.15s;
         }
+        .btn-submit:hover { background-color: #083954; }
+
+        /* ===== Inputs ===== */
         .input-field {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            padding: 9px 12px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
             width: 100%;
             box-sizing: border-box;
+            font-size: 13px;
+            transition: border-color 0.15s;
         }
+        .input-field:focus {
+            outline: none;
+            border-color: #4A90C0;
+            box-shadow: 0 0 0 3px rgba(74,144,192,0.15);
+        }
+
+        /* ===== Filter Bar ===== */
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            padding: 16px;
+            background: #f4f7f9;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .filter-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .filter-group select,
+        .filter-group input[type="text"] {
+            padding: 7px 10px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+        }
+        .filter-group select:focus,
+        .filter-group input[type="text"]:focus {
+            outline: none;
+            border-color: #4A90C0;
+            box-shadow: 0 0 0 3px rgba(74,144,192,0.15);
+        }
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+            padding: 7px 0;
+        }
+        .filter-toggle input[type="checkbox"] {
+            accent-color: #106695;
+            width: 15px;
+            height: 15px;
+        }
+
+        /* ===== IP Chips ===== */
+        .ip-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .ip-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #083954;
+            color: #f7f7f7;
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .ip-chip .remove-chip {
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.7;
+            margin-left: 2px;
+        }
+        .ip-chip .remove-chip:hover { opacity: 1; }
+        .ip-add-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .ip-add-row input {
+            width: 160px;
+            padding: 6px 10px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .ip-add-row input:focus {
+            outline: none;
+            border-color: #4A90C0;
+            box-shadow: 0 0 0 3px rgba(74,144,192,0.15);
+        }
+        .btn-add-ip {
+            background: #106695;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-add-ip:hover { background: #083954; }
+
+        /* ===== Filter Status ===== */
+        .filter-status {
+            font-size: 12px;
+            color: #7f8c8d;
+            padding: 6px 0;
+        }
+        .filter-status strong { color: #083954; }
+
+        /* ===== Toast ===== */
         .toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            bottom: 24px;
+            right: 24px;
             padding: 12px 20px;
-            border-radius: 6px;
+            border-radius: 8px;
             color: white;
             font-weight: 500;
+            font-size: 13px;
             z-index: 1000;
             opacity: 0;
             transform: translateY(10px);
             transition: opacity 0.3s, transform 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-        .toast.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .toast.success { background-color: #28a745; }
-        .toast.error { background-color: #dc3545; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background-color: #106695; }
+        .toast.error { background-color: #c0392b; }
+
+        /* ===== Upload ===== */
         .upload-area {
-            margin-bottom: 10px;
-            padding: 15px;
-            border: 2px dashed #ccc;
-            border-radius: 4px;
+            margin-bottom: 12px;
+            padding: 20px;
+            border: 2px dashed #d1d9e0;
+            border-radius: 8px;
             text-align: center;
             transition: border-color 0.2s, background-color 0.2s;
         }
         .upload-area.dragover {
-            border-color: #007bff;
-            background-color: #e8f4f8;
+            border-color: #4A90C0;
+            background-color: #e8f4fa;
         }
         .progress-bar-container {
             background-color: #e9ecef;
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
             margin-top: 10px;
         }
         .progress-bar {
-            height: 20px;
-            background-color: #007bff;
+            height: 22px;
+            background-color: #106695;
             width: 0%;
             transition: width 0.3s;
             text-align: center;
             color: white;
             font-size: 11px;
-            line-height: 20px;
+            line-height: 22px;
+            border-radius: 6px;
+        }
+
+        /* ===== Details ===== */
+        details summary {
+            cursor: pointer;
+            color: #4A90C0;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        details summary:hover { color: #106695; }
+
+        /* ===== Monospace ===== */
+        .mono {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+        }
+
+        /* ===== Section Toggle ===== */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+        .section-header h2 { margin: 0; }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(8,57,84,0.5);
+            z-index: 900;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 12px 40px rgba(8,57,84,0.25);
+        }
+        .modal-box h3 {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            color: #083954;
+        }
+        .modal-box p {
+            margin: 0 0 16px 0;
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+        .modal-box .link-preview {
+            background: #f4f7f9;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            color: #083954;
+            word-break: break-all;
+            margin-bottom: 16px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .modal-actions .btn-cancel {
+            background: #e9ecef;
+            color: #495057;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .modal-actions .btn-cancel:hover { background: #dee2e6; }
+        .modal-actions .btn-copy-confirm {
+            background: #106695;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .modal-actions .btn-copy-confirm:hover { background: #083954; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .top-header { padding: 12px 16px; }
+            .top-header h1 { font-size: 16px; }
+            .stats-bar { gap: 8px; }
+            .stat-item { padding: 12px 16px; }
+            .stat-item .stat-value { font-size: 22px; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            td, th { padding: 8px; font-size: 12px; }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>Video Analytics Dashboard</h1>
 
-    <div id="stats-bar" style="margin-bottom: 20px; padding: 15px; background-color: #e8f4f8; border-radius: 4px;">
-        <p style="margin: 0;"><strong>Total Sessions:</strong> <span id="total-sessions">{{len .Sessions}}</span> | <strong>Total Videos:</strong> <span id="total-videos">{{len .Videos}}</span> | <strong>Auto-refresh:</strong> Every 10s <span id="refresh-status" style="color: #28a745;">(active)</span></p>
+<!-- Header -->
+<div class="top-header">
+    <img src="/static/images/logo.png" alt="Solnow">
+    <h1>Video Analytics</h1>
+</div>
+
+<div class="container">
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-label">Sessions</div>
+            <div class="stat-value" id="total-sessions">{{len .Sessions}}</div>
+            <div class="stat-sub" id="sessions-filtered-info">all loaded</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Videos</div>
+            <div class="stat-value" id="total-videos">{{len .Videos}}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Auto-refresh</div>
+            <div class="stat-value" style="font-size: 16px;" id="refresh-status">Active</div>
+            <div class="stat-sub">every 10s</div>
+        </div>
     </div>
 
-    <!-- Video Management Section -->
-    <div style="margin-bottom: 30px;">
+    <!-- Video Management -->
+    <div class="card">
         <h2>Video Management</h2>
 
-        <!-- Add Video Form -->
-        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-            <h3>Add New Video</h3>
+        <div style="background: #f4f7f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #083954;">Add New Video</h3>
             <form id="addVideoForm">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <input type="text" id="videoId" placeholder="Video ID" required class="input-field">
@@ -158,9 +503,9 @@
                 </div>
                 {{if .S3Enabled}}
                 <div class="upload-area" id="uploadArea">
-                    <p style="margin: 0 0 10px 0; color: #666;">Or upload a video file directly to S3:</p>
+                    <p style="margin: 0 0 10px 0; color: #7f8c8d; font-size: 13px;">Or upload a video file directly to S3:</p>
                     <input type="file" id="videoFile" accept="video/*" style="display: none;" onchange="handleFileSelect(this)">
-                    <button type="button" onclick="document.getElementById('videoFile').click()" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                    <button type="button" onclick="document.getElementById('videoFile').click()" class="btn btn-primary">
                         Choose Video File
                     </button>
                     <p id="selectedFileName" style="margin: 5px 0 0 0; font-size: 12px; color: #999;"></p>
@@ -176,118 +521,119 @@
             </form>
         </div>
 
-        <!-- Videos Table -->
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Video ID</th>
-                    <th>Title</th>
-                    <th>URL</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="videos-table-body">
-                {{range .Videos}}
-                <tr>
-                    <td>#{{.ID}}</td>
-                    <td><strong>{{.VideoID}}</strong></td>
-                    <td>{{.Title}}</td>
-                    <td style="font-family: monospace; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{.URL}}">{{.URL}}</td>
-                    <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-                    <td style="white-space: nowrap;">
-                        <button onclick="copyWatchLink('{{.VideoID}}')" id="copy-btn-{{.VideoID}}" class="btn btn-copy">Copy Link</button>
-                        <button onclick="editVideo('{{.VideoID}}', '{{.Title}}', '{{.URL}}', '{{.Thumbnail}}')" class="btn btn-edit">Edit</button>
-                        <button onclick="deleteVideo('{{.VideoID}}')" class="btn btn-delete">Delete</button>
-                    </td>
-                </tr>
-                {{else}}
-                <tr>
-                    <td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">No videos found. Add your first video above.</td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Video ID</th>
+                        <th>Title</th>
+                        <th>URL</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="videos-table-body">
+                    {{range .Videos}}
+                    <tr>
+                        <td>#{{.ID}}</td>
+                        <td><strong>{{.VideoID}}</strong></td>
+                        <td>{{.Title}}</td>
+                        <td class="mono" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{.URL}}">{{.URL}}</td>
+                        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+                        <td style="white-space: nowrap;">
+                            <button onclick="copyWatchLink('{{.VideoID}}')" id="copy-btn-{{.VideoID}}" class="btn btn-copy btn-sm">Copy Link</button>
+                            <button onclick="editVideo('{{.VideoID}}', '{{.Title}}', '{{.URL}}', '{{.Thumbnail}}')" class="btn btn-edit btn-sm">Edit</button>
+                            <button onclick="deleteVideo('{{.VideoID}}')" class="btn btn-delete btn-sm">Delete</button>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 24px; color: #7f8c8d;">No videos found. Add your first video above.</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <h2>Session Analytics</h2>
+    <!-- Session Analytics -->
+    <div class="card">
+        <h2>Session Analytics</h2>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Session ID</th>
-                <th>User ID</th>
-                <th>Video ID</th>
-                <th>IP Address</th>
-                <th>Entered At</th>
-                <th>Left At</th>
-                <th>Duration</th>
-                <th>Time Watched</th>
-                <th>Status</th>
-                <th>Details</th>
-            </tr>
-        </thead>
-        <tbody id="sessions-table-body">
-            {{range .Sessions}}
-            <tr>
-                <td>#{{.ID}}</td>
-                <td><strong>{{.UserID}}</strong></td>
-                <td>{{.VideoID}}</td>
-                <td style="font-family: monospace;">{{if .IPAddress}}{{.IPAddress}}{{else}}-{{end}}</td>
-                <td>{{.EnteredAt.Format "2006-01-02 15:04:05"}}</td>
-                <td>
-                    {{if .LeftAt}}
-                        {{.LeftAt.Format "2006-01-02 15:04:05"}}
-                    {{else}}
-                        <em style="color: #666;">Still watching</em>
-                    {{end}}
-                </td>
-                <td>
-                    {{if .LeftAt}}
-                        {{.LeftAt.Sub .EnteredAt}}
-                    {{else}}
-                        -
-                    {{end}}
-                </td>
-                <td>
-                    <strong>{{.TotalTimeWatched}}s</strong>
-                </td>
-                <td>
-                    {{if .LeftAt}}
-                        <span class="status ended">Ended</span>
-                    {{else}}
-                        <span class="status active">Active</span>
-                    {{end}}
-                </td>
-                <td>
-                    <details>
-                        <summary style="cursor: pointer;">View Details</summary>
-                        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;">
-                            <p style="margin: 5px 0;"><strong>Watched seconds ({{len .PlayedSeconds}} bytes):</strong></p>
-                            <pre style="max-height: 200px; overflow-y: auto; background-color: white; padding: 10px; border-radius: 4px; font-size: 12px;">{{.PlayedSeconds}}</pre>
-                        </div>
-                    </details>
-                </td>
-            </tr>
-            {{else}}
-            <tr>
-                <td colspan="10" style="text-align: center; padding: 40px;">
-                    No sessions recorded yet. Visit <a href="/watch?video_id=boatexperience">/watch?video_id=boatexperience</a> to start tracking.
-                </td>
-            </tr>
-            {{end}}
-        </tbody>
-    </table>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="filter-status" onchange="applyFilters()">
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="ended">Ended</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Video</label>
+                <select id="filter-video" onchange="applyFilters()">
+                    <option value="all">All Videos</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>&nbsp;</label>
+                <label class="filter-toggle">
+                    <input type="checkbox" id="filter-show-zero" onchange="applyFilters()">
+                    Show 0s sessions
+                </label>
+            </div>
+            <div class="filter-group" style="flex: 1;">
+                <label>Exclude IPs</label>
+                <div class="ip-add-row">
+                    <input type="text" id="ip-input" placeholder="e.g. 192.168.1.1" onkeydown="if(event.key==='Enter'){event.preventDefault();addExcludedIP();}">
+                    <button class="btn-add-ip" onclick="addExcludedIP()">+ Add</button>
+                </div>
+            </div>
+        </div>
 
-    <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
-        <h3>Quick Links</h3>
-        <p>Test the video tracking with these sample URLs:</p>
-        <ul>
-            <li><a href="/watch?user_id=user001&video_id=boatexperience">/watch?user_id=user001&video_id=boatexperience</a></li>
-            <li><a href="/watch?user_id=user002&video_id=boatexperience">/watch?user_id=user002&video_id=boatexperience</a></li>
-            <li><a href="/watch?user_id=test123&video_id=boatexperience">/watch?user_id=test123&video_id=boatexperience</a></li>
-        </ul>
+        <!-- IP Chips -->
+        <div class="ip-chips" id="ip-chips-container"></div>
+
+        <!-- Filter Status -->
+        <div class="filter-status" id="filter-status-text"></div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>User</th>
+                        <th>Video</th>
+                        <th>IP</th>
+                        <th>Entered</th>
+                        <th>Left</th>
+                        <th>Duration</th>
+                        <th>Watched</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="sessions-table-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Copy Link Modal -->
+<div class="modal-overlay" id="copyModal">
+    <div class="modal-box">
+        <h3>Copy Watch Link</h3>
+        <p>Enter a User ID to identify who watches this video.</p>
+        <input type="text" id="modal-user-id" class="input-field" placeholder="e.g. cliente-juan, vendedor-maria" style="margin-bottom: 12px;" required>
+        <div class="link-preview" id="modal-link-preview"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeCopyModal()">Cancel</button>
+            <button class="btn-copy-confirm" id="modal-copy-btn" onclick="confirmCopyLink()">Copy Link</button>
+        </div>
     </div>
 </div>
 
@@ -295,38 +641,40 @@
 <div id="toast" class="toast"></div>
 
 <script>
+    // ========== State ==========
+    var allSessions = [];
+    var allVideos = [];
+    var excludedIPs = JSON.parse(localStorage.getItem('vt_excluded_ips') || '[]');
+
     // ========== Toast Notifications ==========
     function showToast(message, type) {
         var toast = document.getElementById('toast');
         toast.textContent = message;
         toast.className = 'toast ' + type + ' show';
-        setTimeout(function() {
-            toast.className = 'toast';
-        }, 3000);
+        setTimeout(function() { toast.className = 'toast'; }, 3000);
     }
 
-    // ========== AJAX Polling (replaces location.reload) ==========
+    // ========== AJAX Polling ==========
     var isFormFocused = false;
     var pollTimer = null;
 
-    // Detect form focus to pause polling
     var form = document.getElementById('addVideoForm');
     form.addEventListener('focusin', function() {
         isFormFocused = true;
-        document.getElementById('refresh-status').textContent = '(paused - editing form)';
-        document.getElementById('refresh-status').style.color = '#ffc107';
+        document.getElementById('refresh-status').textContent = 'Paused';
+        document.getElementById('refresh-status').style.color = '#e67e22';
     });
     form.addEventListener('focusout', function() {
-        // Small debounce for tabbing between fields
         setTimeout(function() {
             if (!form.contains(document.activeElement)) {
                 isFormFocused = false;
-                document.getElementById('refresh-status').textContent = '(active)';
-                document.getElementById('refresh-status').style.color = '#28a745';
+                document.getElementById('refresh-status').textContent = 'Active';
+                document.getElementById('refresh-status').style.color = '';
             }
         }, 200);
     });
 
+    // ========== Formatting ==========
     function formatDate(dateStr) {
         if (!dateStr) return '';
         var d = new Date(dateStr);
@@ -346,13 +694,20 @@
     function formatDuration(enteredAt, leftAt) {
         if (!leftAt) return '-';
         var ms = new Date(leftAt) - new Date(enteredAt);
+        if (ms < 0) ms = 0;
         var totalSec = Math.floor(ms / 1000);
         var h = Math.floor(totalSec / 3600);
         var m = Math.floor((totalSec % 3600) / 60);
         var s = totalSec % 60;
-        if (h > 0) return h + 'h' + m + 'm' + s + 's';
-        if (m > 0) return m + 'm' + s + 's';
+        if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+        if (m > 0) return m + 'm ' + s + 's';
         return s + 's';
+    }
+
+    function getDurationSeconds(enteredAt, leftAt) {
+        if (!leftAt) return -1;
+        var ms = new Date(leftAt) - new Date(enteredAt);
+        return Math.max(0, Math.floor(ms / 1000));
     }
 
     function escapeHtml(str) {
@@ -361,10 +716,107 @@
         return div.innerHTML;
     }
 
+    // ========== Excluded IPs ==========
+    function renderIPChips() {
+        var container = document.getElementById('ip-chips-container');
+        if (excludedIPs.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < excludedIPs.length; i++) {
+            html += '<span class="ip-chip">' + escapeHtml(excludedIPs[i]) +
+                    ' <span class="remove-chip" onclick="removeExcludedIP(' + i + ')">&times;</span></span>';
+        }
+        container.innerHTML = html;
+    }
+
+    function addExcludedIP() {
+        var input = document.getElementById('ip-input');
+        var ip = input.value.trim();
+        if (!ip) return;
+        if (excludedIPs.indexOf(ip) === -1) {
+            excludedIPs.push(ip);
+            localStorage.setItem('vt_excluded_ips', JSON.stringify(excludedIPs));
+        }
+        input.value = '';
+        renderIPChips();
+        applyFilters();
+    }
+
+    function removeExcludedIP(idx) {
+        excludedIPs.splice(idx, 1);
+        localStorage.setItem('vt_excluded_ips', JSON.stringify(excludedIPs));
+        renderIPChips();
+        applyFilters();
+    }
+
+    // ========== Video Filter Dropdown ==========
+    function updateVideoFilterDropdown() {
+        var select = document.getElementById('filter-video');
+        var current = select.value;
+        var videoIds = {};
+        for (var i = 0; i < allSessions.length; i++) {
+            videoIds[allSessions[i].video_id] = true;
+        }
+        var html = '<option value="all">All Videos</option>';
+        var keys = Object.keys(videoIds).sort();
+        for (var j = 0; j < keys.length; j++) {
+            html += '<option value="' + escapeHtml(keys[j]) + '">' + escapeHtml(keys[j]) + '</option>';
+        }
+        select.innerHTML = html;
+        select.value = current;
+    }
+
+    // ========== Apply Filters & Render ==========
+    function applyFilters() {
+        var statusFilter = document.getElementById('filter-status').value;
+        var videoFilter = document.getElementById('filter-video').value;
+        var showZero = document.getElementById('filter-show-zero').checked;
+
+        var filtered = [];
+        var totalCount = allSessions.length;
+
+        for (var i = 0; i < allSessions.length; i++) {
+            var s = allSessions[i];
+
+            // Status filter
+            if (statusFilter === 'active' && s.left_at) continue;
+            if (statusFilter === 'ended' && !s.left_at) continue;
+
+            // Video filter
+            if (videoFilter !== 'all' && s.video_id !== videoFilter) continue;
+
+            // IP exclusion
+            if (s.ip_address && excludedIPs.indexOf(s.ip_address) !== -1) continue;
+
+            // Zero duration filter (only for ended sessions)
+            if (!showZero && s.left_at) {
+                var durSec = getDurationSeconds(s.entered_at, s.left_at);
+                if (durSec <= 0) continue;
+            }
+
+            filtered.push(s);
+        }
+
+        renderSessionsTable(filtered);
+
+        var hiddenCount = totalCount - filtered.length;
+        var statusText = 'Showing <strong>' + filtered.length + '</strong> of ' + totalCount + ' sessions';
+        if (hiddenCount > 0) {
+            statusText += ' (' + hiddenCount + ' hidden by filters)';
+        }
+        document.getElementById('filter-status-text').innerHTML = statusText;
+        document.getElementById('total-sessions').textContent = filtered.length;
+        document.getElementById('sessions-filtered-info').textContent =
+            hiddenCount > 0 ? (hiddenCount + ' filtered out') : 'all loaded';
+    }
+
+    // ========== Render Tables ==========
     function renderVideosTable(videos) {
         var tbody = document.getElementById('videos-table-body');
         if (!videos || videos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">No videos found. Add your first video above.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #7f8c8d;">No videos found. Add your first video above.</td></tr>';
             return;
         }
         var html = '';
@@ -374,12 +826,12 @@
                 '<td>#' + v.id + '</td>' +
                 '<td><strong>' + escapeHtml(v.video_id) + '</strong></td>' +
                 '<td>' + escapeHtml(v.title) + '</td>' +
-                '<td style="font-family: monospace; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapeHtml(v.url) + '">' + escapeHtml(v.url) + '</td>' +
+                '<td class="mono" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapeHtml(v.url) + '">' + escapeHtml(v.url) + '</td>' +
                 '<td>' + formatDateShort(v.created_at) + '</td>' +
                 '<td style="white-space: nowrap;">' +
-                    '<button onclick="copyWatchLink(\'' + escapeHtml(v.video_id) + '\')" id="copy-btn-' + escapeHtml(v.video_id) + '" class="btn btn-copy">Copy Link</button>' +
-                    '<button onclick="editVideo(\'' + escapeHtml(v.video_id) + '\', \'' + escapeHtml(v.title).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.url).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.thumbnail || '').replace(/'/g, "\\'") + '\')" class="btn btn-edit">Edit</button>' +
-                    '<button onclick="deleteVideo(\'' + escapeHtml(v.video_id) + '\')" class="btn btn-delete">Delete</button>' +
+                    '<button onclick="copyWatchLink(\'' + escapeHtml(v.video_id) + '\')" id="copy-btn-' + escapeHtml(v.video_id) + '" class="btn btn-copy btn-sm">Copy Link</button> ' +
+                    '<button onclick="editVideo(\'' + escapeHtml(v.video_id) + '\', \'' + escapeHtml(v.title).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.url).replace(/'/g, "\\'") + '\', \'' + escapeHtml(v.thumbnail || '').replace(/'/g, "\\'") + '\')" class="btn btn-edit btn-sm">Edit</button> ' +
+                    '<button onclick="deleteVideo(\'' + escapeHtml(v.video_id) + '\')" class="btn btn-delete btn-sm">Delete</button>' +
                 '</td>' +
                 '</tr>';
         }
@@ -389,13 +841,13 @@
     function renderSessionsTable(sessions) {
         var tbody = document.getElementById('sessions-table-body');
         if (!sessions || sessions.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px;">No sessions recorded yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px; color: #7f8c8d;">No sessions match current filters.</td></tr>';
             return;
         }
         var html = '';
         for (var i = 0; i < sessions.length; i++) {
             var s = sessions[i];
-            var leftAtStr = s.left_at ? formatDate(s.left_at) : '<em style="color: #666;">Still watching</em>';
+            var leftAtStr = s.left_at ? formatDate(s.left_at) : '<em style="color: #4A90C0;">Watching...</em>';
             var duration = formatDuration(s.entered_at, s.left_at);
             var statusClass = s.left_at ? 'ended' : 'active';
             var statusText = s.left_at ? 'Ended' : 'Active';
@@ -406,20 +858,30 @@
                 '<td>#' + s.id + '</td>' +
                 '<td><strong>' + escapeHtml(s.user_id) + '</strong></td>' +
                 '<td>' + escapeHtml(s.video_id) + '</td>' +
-                '<td style="font-family: monospace;">' + (s.ip_address ? escapeHtml(s.ip_address) : '-') + '</td>' +
+                '<td class="mono">' + (s.ip_address ? escapeHtml(s.ip_address) : '-') + '</td>' +
                 '<td>' + formatDate(s.entered_at) + '</td>' +
                 '<td>' + leftAtStr + '</td>' +
-                '<td>' + duration + '</td>' +
+                '<td><strong>' + duration + '</strong></td>' +
                 '<td><strong>' + s.total_time_watched + 's</strong></td>' +
-                '<td><span class="status ' + statusClass + '">' + statusText + '</span></td>' +
-                '<td><details><summary style="cursor: pointer;">View Details</summary>' +
-                    '<div style="padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;">' +
-                    '<p style="margin: 5px 0;"><strong>Watched seconds (' + playedLen + ' bytes):</strong></p>' +
-                    '<pre style="max-height: 200px; overflow-y: auto; background-color: white; padding: 10px; border-radius: 4px; font-size: 12px;">' + escapeHtml(playedStr) + '</pre>' +
+                '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
+                '<td><details><summary>View</summary>' +
+                    '<div style="padding: 10px; background: #f4f7f9; border-radius: 6px; margin-top: 6px;">' +
+                    '<p style="margin: 4px 0; font-size: 12px;"><strong>Watched seconds (' + playedLen + ' bytes):</strong></p>' +
+                    '<pre class="mono" style="max-height: 200px; overflow-y: auto; background: white; padding: 10px; border-radius: 4px; border: 1px solid #e9ecef;">' + escapeHtml(playedStr) + '</pre>' +
                     '</div></details></td>' +
                 '</tr>';
         }
         tbody.innerHTML = html;
+    }
+
+    // ========== Data Refresh ==========
+    function processData(data) {
+        allSessions = data.sessions || [];
+        allVideos = data.videos || [];
+        renderVideosTable(allVideos);
+        updateVideoFilterDropdown();
+        applyFilters();
+        document.getElementById('total-videos').textContent = allVideos.length;
     }
 
     function refreshData() {
@@ -427,39 +889,85 @@
             pollTimer = setTimeout(refreshData, 10000);
             return;
         }
-
         fetch('/api/admin/data')
             .then(function(response) { return response.json(); })
-            .then(function(data) {
-                renderVideosTable(data.videos);
-                renderSessionsTable(data.sessions);
-                document.getElementById('total-sessions').textContent = data.sessions ? data.sessions.length : 0;
-                document.getElementById('total-videos').textContent = data.videos ? data.videos.length : 0;
-            })
-            .catch(function(err) {
-                console.error('Failed to refresh data:', err);
-            })
-            .finally(function() {
-                pollTimer = setTimeout(refreshData, 10000);
-            });
+            .then(processData)
+            .catch(function(err) { console.error('Failed to refresh data:', err); })
+            .finally(function() { pollTimer = setTimeout(refreshData, 10000); });
+    }
+
+    function refreshDataNow() {
+        if (pollTimer) clearTimeout(pollTimer);
+        fetch('/api/admin/data')
+            .then(function(response) { return response.json(); })
+            .then(processData)
+            .catch(function(err) { console.error('Failed to refresh data:', err); })
+            .finally(function() { pollTimer = setTimeout(refreshData, 10000); });
     }
 
     // Start polling
     pollTimer = setTimeout(refreshData, 10000);
 
-    // ========== Copy Watch Link ==========
-    function copyWatchLink(videoId) {
-        var url = window.location.protocol + '//' + window.location.host + '/watch?video_id=' + encodeURIComponent(videoId);
+    // ========== Initial Render ==========
+    renderIPChips();
+    // Trigger initial data load to apply filters on server-rendered data
+    refreshDataNow();
 
+    // ========== Copy Watch Link (Modal) ==========
+    var currentCopyVideoId = '';
+
+    function copyWatchLink(videoId) {
+        currentCopyVideoId = videoId;
+        document.getElementById('modal-user-id').value = '';
+        updateLinkPreview();
+        document.getElementById('copyModal').classList.add('open');
+        setTimeout(function() { document.getElementById('modal-user-id').focus(); }, 100);
+    }
+
+    document.getElementById('modal-user-id').addEventListener('input', updateLinkPreview);
+
+    function updateLinkPreview() {
+        var userId = document.getElementById('modal-user-id').value.trim();
+        var url = window.location.protocol + '//' + window.location.host + '/watch?video_id=' + encodeURIComponent(currentCopyVideoId);
+        if (userId) url += '&user_id=' + encodeURIComponent(userId);
+        document.getElementById('modal-link-preview').textContent = url;
+    }
+
+    function closeCopyModal() {
+        document.getElementById('copyModal').classList.remove('open');
+        currentCopyVideoId = '';
+    }
+
+    // Close modal on overlay click
+    document.getElementById('copyModal').addEventListener('click', function(e) {
+        if (e.target === this) closeCopyModal();
+    });
+
+    // Close modal on Escape, copy on Enter
+    document.addEventListener('keydown', function(e) {
+        if (!document.getElementById('copyModal').classList.contains('open')) return;
+        if (e.key === 'Escape') closeCopyModal();
+        if (e.key === 'Enter') { e.preventDefault(); confirmCopyLink(); }
+    });
+
+    function confirmCopyLink() {
+        var userId = document.getElementById('modal-user-id').value.trim();
+        if (!userId) {
+            document.getElementById('modal-user-id').focus();
+            document.getElementById('modal-user-id').style.borderColor = '#c0392b';
+            setTimeout(function() { document.getElementById('modal-user-id').style.borderColor = ''; }, 1500);
+            return;
+        }
+        var url = document.getElementById('modal-link-preview').textContent;
+        var videoId = currentCopyVideoId;
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(url).then(function() {
                 showCopyFeedback(videoId);
-            }).catch(function() {
-                fallbackCopy(url, videoId);
-            });
+            }).catch(function() { fallbackCopy(url, videoId); });
         } else {
             fallbackCopy(url, videoId);
         }
+        closeCopyModal();
     }
 
     function fallbackCopy(text, videoId) {
@@ -469,26 +977,18 @@
         textarea.style.left = '-9999px';
         document.body.appendChild(textarea);
         textarea.select();
-        try {
-            document.execCommand('copy');
-            showCopyFeedback(videoId);
-        } catch (e) {
-            showToast('Failed to copy link', 'error');
-        }
+        try { document.execCommand('copy'); showCopyFeedback(videoId); }
+        catch (e) { showToast('Failed to copy link', 'error'); }
         document.body.removeChild(textarea);
     }
 
     function showCopyFeedback(videoId) {
         var btn = document.getElementById('copy-btn-' + videoId);
         if (btn) {
-            var originalText = btn.textContent;
-            var originalBg = btn.style.backgroundColor;
+            var orig = btn.textContent;
             btn.textContent = 'Copied!';
-            btn.style.backgroundColor = '#28a745';
-            setTimeout(function() {
-                btn.textContent = originalText;
-                btn.style.backgroundColor = originalBg;
-            }, 2000);
+            btn.style.backgroundColor = '#27ae60';
+            setTimeout(function() { btn.textContent = orig; btn.style.backgroundColor = ''; }, 2000);
         }
         showToast('Link copied to clipboard', 'success');
     }
@@ -496,7 +996,6 @@
     // ========== Video CRUD ==========
     document.getElementById('addVideoForm').addEventListener('submit', function(e) {
         e.preventDefault();
-
         var videoId = document.getElementById('videoId').value;
         var videoTitle = document.getElementById('videoTitle').value;
         var videoUrl = document.getElementById('videoUrl').value;
@@ -505,122 +1004,59 @@
         fetch('/api/videos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                video_id: videoId,
-                title: videoTitle,
-                url: videoUrl,
-                thumbnail: videoThumb
-            })
+            body: JSON.stringify({ video_id: videoId, title: videoTitle, url: videoUrl, thumbnail: videoThumb })
         })
         .then(function(response) {
             if (response.ok) {
                 showToast('Video added successfully!', 'success');
                 document.getElementById('addVideoForm').reset();
-                // Reset upload UI if present
-                var selectedFile = document.getElementById('selectedFileName');
-                if (selectedFile) selectedFile.textContent = '';
-                var uploadProgress = document.getElementById('uploadProgress');
-                if (uploadProgress) uploadProgress.style.display = 'none';
-                // Refresh tables immediately
+                var sf = document.getElementById('selectedFileName');
+                if (sf) sf.textContent = '';
+                var up = document.getElementById('uploadProgress');
+                if (up) up.style.display = 'none';
                 refreshDataNow();
             } else {
-                return response.text().then(function(text) {
-                    showToast('Error: ' + text, 'error');
-                });
+                return response.text().then(function(text) { showToast('Error: ' + text, 'error'); });
             }
         })
-        .catch(function(error) {
-            showToast('Error: ' + error.message, 'error');
-        });
+        .catch(function(error) { showToast('Error: ' + error.message, 'error'); });
     });
 
     function editVideo(videoId, currentTitle, currentUrl, currentThumb) {
         var newTitle = prompt('Enter new title:', currentTitle);
         if (newTitle === null) return;
-
         var newUrl = prompt('Enter new URL:', currentUrl);
         if (newUrl === null) return;
-
         var newThumb = prompt('Enter new thumbnail URL:', currentThumb);
         if (newThumb === null) return;
 
         fetch('/api/videos/' + videoId, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: newTitle,
-                url: newUrl,
-                thumbnail: newThumb
-            })
+            body: JSON.stringify({ title: newTitle, url: newUrl, thumbnail: newThumb })
         })
         .then(function(response) {
-            if (response.ok) {
-                showToast('Video updated successfully!', 'success');
-                refreshDataNow();
-            } else {
-                return response.text().then(function(text) {
-                    showToast('Error: ' + text, 'error');
-                });
-            }
+            if (response.ok) { showToast('Video updated!', 'success'); refreshDataNow(); }
+            else { return response.text().then(function(t) { showToast('Error: ' + t, 'error'); }); }
         })
-        .catch(function(error) {
-            showToast('Error: ' + error.message, 'error');
-        });
+        .catch(function(error) { showToast('Error: ' + error.message, 'error'); });
     }
 
     function deleteVideo(videoId) {
-        if (!confirm('Are you sure you want to delete video "' + videoId + '"? This action cannot be undone.')) {
-            return;
-        }
-
-        fetch('/api/videos/' + videoId, {
-            method: 'DELETE'
-        })
+        if (!confirm('Delete video "' + videoId + '"? This cannot be undone.')) return;
+        fetch('/api/videos/' + videoId, { method: 'DELETE' })
         .then(function(response) {
-            if (response.ok || response.status === 204) {
-                showToast('Video deleted successfully!', 'success');
-                refreshDataNow();
-            } else {
-                return response.text().then(function(text) {
-                    showToast('Error: ' + text, 'error');
-                });
-            }
+            if (response.ok || response.status === 204) { showToast('Video deleted!', 'success'); refreshDataNow(); }
+            else { return response.text().then(function(t) { showToast('Error: ' + t, 'error'); }); }
         })
-        .catch(function(error) {
-            showToast('Error: ' + error.message, 'error');
-        });
-    }
-
-    // Immediate refresh (cancel pending timer and refresh now)
-    function refreshDataNow() {
-        if (pollTimer) clearTimeout(pollTimer);
-        fetch('/api/admin/data')
-            .then(function(response) { return response.json(); })
-            .then(function(data) {
-                renderVideosTable(data.videos);
-                renderSessionsTable(data.sessions);
-                document.getElementById('total-sessions').textContent = data.sessions ? data.sessions.length : 0;
-                document.getElementById('total-videos').textContent = data.videos ? data.videos.length : 0;
-            })
-            .catch(function(err) {
-                console.error('Failed to refresh data:', err);
-            })
-            .finally(function() {
-                pollTimer = setTimeout(refreshData, 10000);
-            });
+        .catch(function(error) { showToast('Error: ' + error.message, 'error'); });
     }
 
     // ========== S3 Upload ==========
     {{if .S3Enabled}}
-    // Drag and drop support
     var uploadArea = document.getElementById('uploadArea');
-    uploadArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        uploadArea.classList.add('dragover');
-    });
-    uploadArea.addEventListener('dragleave', function() {
-        uploadArea.classList.remove('dragover');
-    });
+    uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', function() { uploadArea.classList.remove('dragover'); });
     uploadArea.addEventListener('drop', function(e) {
         e.preventDefault();
         uploadArea.classList.remove('dragover');
@@ -633,22 +1069,13 @@
     function handleFileSelect(input) {
         var file = input.files[0];
         if (!file) return;
-
         document.getElementById('selectedFileName').textContent = file.name + ' (' + formatSize(file.size) + ')';
-
-        // Get presigned URL
         fetch('/api/upload/presign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                filename: file.name,
-                content_type: file.type || 'video/mp4'
-            })
+            body: JSON.stringify({ filename: file.name, content_type: file.type || 'video/mp4' })
         })
-        .then(function(response) {
-            if (!response.ok) throw new Error('Failed to get upload URL');
-            return response.json();
-        })
+        .then(function(response) { if (!response.ok) throw new Error('Failed to get upload URL'); return response.json(); })
         .then(function(presignData) {
             document.getElementById('uploadProgress').style.display = 'block';
             return uploadToS3(presignData.presigned_url, file, presignData.object_url);
@@ -662,35 +1089,25 @@
     function uploadToS3(presignedUrl, file, objectUrl) {
         return new Promise(function(resolve, reject) {
             var xhr = new XMLHttpRequest();
-
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
                     var percent = Math.round((e.loaded / e.total) * 100);
                     var bar = document.getElementById('progressBar');
                     bar.style.width = percent + '%';
                     bar.textContent = percent + '%';
-                    document.getElementById('uploadStatus').textContent =
-                        'Uploading... ' + formatSize(e.loaded) + ' / ' + formatSize(e.total);
+                    document.getElementById('uploadStatus').textContent = 'Uploading... ' + formatSize(e.loaded) + ' / ' + formatSize(e.total);
                 }
             });
-
             xhr.addEventListener('load', function() {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     document.getElementById('uploadStatus').textContent = 'Upload complete!';
-                    document.getElementById('progressBar').style.backgroundColor = '#28a745';
-                    // Auto-fill the Video URL field
+                    document.getElementById('progressBar').style.backgroundColor = '#27ae60';
                     document.getElementById('videoUrl').value = objectUrl;
-                    showToast('Video uploaded to S3 successfully!', 'success');
+                    showToast('Video uploaded to S3!', 'success');
                     resolve();
-                } else {
-                    reject(new Error('Upload failed with status ' + xhr.status));
-                }
+                } else { reject(new Error('Upload failed with status ' + xhr.status)); }
             });
-
-            xhr.addEventListener('error', function() {
-                reject(new Error('Network error during upload'));
-            });
-
+            xhr.addEventListener('error', function() { reject(new Error('Network error during upload')); });
             xhr.open('PUT', presignedUrl);
             xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
             xhr.send(file);

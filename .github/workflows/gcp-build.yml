@@ -1,0 +1,47 @@
+# Construye la imagen Docker de videotracker y la publica en Artifact Registry de GCP.
+# El despliegue lo hace Argo CD desde lucastomic/solnow-terraform (rama gcp),
+# que referencia esta imagen por tag (= SHA del commit).
+name: GCP · build a Artifact Registry
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Rama, tag o SHA a construir
+        default: main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE: europe-southwest1-docker.pkg.dev/solnow-prod/solnow/videotracker
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Calcular tag
+        run: echo "TAG=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/138356047980/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deployer@solnow-prod.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configurar Docker para Artifact Registry
+        run: gcloud auth configure-docker europe-southwest1-docker.pkg.dev --quiet
+
+      - name: Build
+        run: docker build -t "$IMAGE:$TAG" .
+
+      - name: Push
+        run: docker push "$IMAGE:$TAG"

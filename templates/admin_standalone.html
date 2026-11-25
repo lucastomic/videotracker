@@ -445,6 +445,64 @@
         }
         .modal-actions .btn-copy-confirm:hover { background: #083954; }
 
+        /* ===== Share links ===== */
+        .share-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 14px;
+            margin-bottom: 10px;
+        }
+        .share-form-grid .full { grid-column: 1 / -1; }
+        .field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        .field .hint { font-size: 11px; color: #95a5a6; margin-top: 3px; }
+        .inline-row { display: flex; gap: 8px; align-items: center; }
+        .inline-row .input-field { flex: 1; }
+        .color-input { width: 44px; height: 36px; padding: 2px; border: 1px solid #d1d9e0; border-radius: 6px; background: white; }
+        .share-preview {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            margin: 6px 0 14px 0;
+        }
+        .share-preview img {
+            width: 480px;
+            max-width: 100%;
+            aspect-ratio: 1200 / 630;
+            border-radius: 8px;
+            border: 1px solid #d1d9e0;
+            background: #e9ecef;
+            object-fit: cover;
+        }
+        .share-preview .wa-text { font-size: 12px; color: #2c3e50; max-width: 360px; }
+        .share-preview .wa-text strong { display: block; margin: 6px 0 2px; }
+        .share-result {
+            display: none;
+            background: #e8f6ee;
+            border: 1px solid #b7e1c7;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+        .share-thumb { width: 120px; border-radius: 4px; display: block; border: 1px solid #e9ecef; }
+        .badge.expired { background-color: #fdf2e0; color: #b9770e; }
+        .badge.revoked { background-color: #fdecea; color: #c0392b; }
+        .header-spacer { flex: 1; }
+        .top-header a.logout { color: #f7f7f7; font-size: 13px; text-decoration: none; opacity: 0.85; }
+        .top-header a.logout:hover { opacity: 1; text-decoration: underline; }
+        @media (max-width: 768px) {
+            .share-form-grid { grid-template-columns: 1fr; }
+        }
+
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
             .container { padding: 12px; }
@@ -464,6 +522,8 @@
 <div class="top-header">
     <img src="/static/images/logo.png" alt="Solnow">
     <h1>Video Analytics</h1>
+    <span class="header-spacer"></span>
+    <a href="/admin/logout" class="logout">Cerrar sesión</a>
 </div>
 
 <div class="container">
@@ -483,6 +543,105 @@
             <div class="stat-label">Auto-refresh</div>
             <div class="stat-value" style="font-size: 16px;" id="refresh-status">Active</div>
             <div class="stat-sub">every 10s</div>
+        </div>
+    </div>
+
+    <!-- Share Links -->
+    <div class="card" id="shares-card">
+        <h2>Enlaces para compartir</h2>
+
+        <div style="background: #f4f7f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #083954;" id="share-form-title">Crear enlace</h3>
+            <form id="shareForm" autocomplete="off">
+                <div class="share-form-grid">
+                    <div class="field share-create-only">
+                        <label for="share-video">Vídeo</label>
+                        <select id="share-video" class="input-field" required></select>
+                    </div>
+                    <div class="field share-create-only">
+                        <label for="share-recipient">Destinatario</label>
+                        <input type="text" id="share-recipient" class="input-field" placeholder="p. ej. marina-ibiza-juan" maxlength="100" required>
+                        <div class="hint">Etiqueta con la que verás sus visitas en el seguimiento.</div>
+                    </div>
+                    <div class="field full">
+                        <label for="share-company-url">Web de la empresa (opcional)</label>
+                        <div class="inline-row">
+                            <input type="text" id="share-company-url" class="input-field" placeholder="https://www.empresa-nautica.com">
+                            <button type="button" class="btn btn-primary" id="share-analyze-btn" onclick="analyzeCompany()">Analizar web</button>
+                        </div>
+                        <div class="hint">Saca nombre, logo y color de la web para la miniatura de WhatsApp. Puedes corregirlos abajo.</div>
+                    </div>
+                    <div class="field">
+                        <label for="share-company-name">Nombre de la empresa</label>
+                        <input type="text" id="share-company-name" class="input-field" maxlength="80" placeholder="Vacío = miniatura genérica de SolNow">
+                    </div>
+                    <div class="field">
+                        <label for="share-brand-color">Color de marca</label>
+                        <div class="inline-row">
+                            <input type="color" id="share-brand-color-picker" class="color-input" value="#0b2545">
+                            <input type="text" id="share-brand-color" class="input-field" value="#0B2545" maxlength="7">
+                        </div>
+                    </div>
+                    <div class="field full">
+                        <label for="share-logo-url">URL del logo</label>
+                        <input type="text" id="share-logo-url" class="input-field" placeholder="https://... (PNG, JPG o WebP; SVG no)">
+                    </div>
+                    <div class="field share-create-only">
+                        <label for="share-password">Contraseña (opcional)</label>
+                        <input type="text" id="share-password" class="input-field" placeholder="Sin contraseña" maxlength="72">
+                    </div>
+                    <div class="field share-create-only">
+                        <label for="share-expiry">Caducidad</label>
+                        <div class="inline-row">
+                            <select id="share-expiry" class="input-field">
+                                <option value="">Sin caducidad</option>
+                                <option value="7">7 días</option>
+                                <option value="30" selected>30 días</option>
+                                <option value="90">90 días</option>
+                                <option value="date">Fecha concreta…</option>
+                            </select>
+                            <input type="date" id="share-expiry-date" class="input-field" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="share-preview">
+                    <img id="share-preview-img" alt="Vista previa de la miniatura">
+                    <div class="wa-text">
+                        <span style="color: #7f8c8d;">Así se verá en WhatsApp:</span>
+                        <strong id="share-preview-title"></strong>
+                        <span id="share-preview-desc" style="color: #7f8c8d;"></span>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button type="submit" class="btn-submit" id="share-submit-btn">Crear enlace</button>
+                    <button type="button" class="btn-submit" id="share-cancel-edit" style="display: none; background-color: #7f8c8d; width: auto;" onclick="cancelShareEdit()">Cancelar</button>
+                </div>
+                <div class="share-result" id="share-result"></div>
+            </form>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Miniatura</th>
+                        <th>Destinatario</th>
+                        <th>Empresa</th>
+                        <th>Vídeo</th>
+                        <th>Estado</th>
+                        <th>Caduca</th>
+                        <th>Visitas</th>
+                        <th>Tiempo visto</th>
+                        <th>Última visita</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="shares-table-body">
+                    <tr><td colspan="10" style="text-align: center; padding: 24px; color: #7f8c8d;">Cargando…</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -658,21 +817,32 @@
     var isFormFocused = false;
     var pollTimer = null;
 
-    var form = document.getElementById('addVideoForm');
-    form.addEventListener('focusin', function() {
-        isFormFocused = true;
-        document.getElementById('refresh-status').textContent = 'Paused';
-        document.getElementById('refresh-status').style.color = '#e67e22';
+    ['addVideoForm', 'shareForm'].forEach(function(formId) {
+        var form = document.getElementById(formId);
+        form.addEventListener('focusin', function() {
+            isFormFocused = true;
+            document.getElementById('refresh-status').textContent = 'Paused';
+            document.getElementById('refresh-status').style.color = '#e67e22';
+        });
+        form.addEventListener('focusout', function() {
+            setTimeout(function() {
+                if (!form.contains(document.activeElement)) {
+                    isFormFocused = false;
+                    document.getElementById('refresh-status').textContent = 'Active';
+                    document.getElementById('refresh-status').style.color = '';
+                }
+            }, 200);
+        });
     });
-    form.addEventListener('focusout', function() {
-        setTimeout(function() {
-            if (!form.contains(document.activeElement)) {
-                isFormFocused = false;
-                document.getElementById('refresh-status').textContent = 'Active';
-                document.getElementById('refresh-status').style.color = '';
-            }
-        }, 200);
-    });
+
+    // Expired admin session => back to the login page.
+    function checkAuth(response) {
+        if (response.status === 401) {
+            window.location.href = '/admin/login?next=/admin';
+            throw new Error('No autorizado');
+        }
+        return response;
+    }
 
     // ========== Formatting ==========
     function formatDate(dateStr) {
@@ -879,6 +1049,7 @@
         allSessions = data.sessions || [];
         allVideos = data.videos || [];
         renderVideosTable(allVideos);
+        updateShareVideoSelect();
         updateVideoFilterDropdown();
         applyFilters();
         document.getElementById('total-videos').textContent = allVideos.length;
@@ -889,7 +1060,9 @@
             pollTimer = setTimeout(refreshData, 10000);
             return;
         }
+        loadShares();
         fetch('/api/admin/data')
+            .then(checkAuth)
             .then(function(response) { return response.json(); })
             .then(processData)
             .catch(function(err) { console.error('Failed to refresh data:', err); })
@@ -898,7 +1071,9 @@
 
     function refreshDataNow() {
         if (pollTimer) clearTimeout(pollTimer);
+        loadShares();
         fetch('/api/admin/data')
+            .then(checkAuth)
             .then(function(response) { return response.json(); })
             .then(processData)
             .catch(function(err) { console.error('Failed to refresh data:', err); })
@@ -1051,6 +1226,268 @@
         })
         .catch(function(error) { showToast('Error: ' + error.message, 'error'); });
     }
+
+    // ========== Share Links ==========
+    var allShares = [];
+    var editingShareId = null;
+    var previewTimer = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    function updateShareVideoSelect() {
+        var select = $('share-video');
+        var current = select.value;
+        var html = '';
+        for (var i = 0; i < allVideos.length; i++) {
+            var v = allVideos[i];
+            html += '<option value="' + escapeHtml(v.video_id) + '">' + escapeHtml(v.title) + ' (' + escapeHtml(v.video_id) + ')</option>';
+        }
+        if (!html) html = '<option value="">Primero añade un vídeo</option>';
+        select.innerHTML = html;
+        if (current) select.value = current;
+        if (!select.value && select.options.length) select.selectedIndex = 0;
+        updateSharePreview();
+    }
+
+    function formatWatched(sec) {
+        sec = sec || 0;
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+        if (h > 0) return h + 'h ' + m + 'm';
+        if (m > 0) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+
+    function shareBadge(status) {
+        var cls = { 'activo': 'active', 'caducado': 'expired', 'revocado': 'revoked' }[status] || 'ended';
+        return '<span class="badge ' + cls + '">' + escapeHtml(status) + '</span>';
+    }
+
+    function loadShares() {
+        fetch('/api/admin/shares')
+            .then(checkAuth)
+            .then(function(r) { return r.json(); })
+            .then(function(data) { allShares = data || []; renderSharesTable(); })
+            .catch(function(err) { console.error('Failed to load shares:', err); });
+    }
+
+    function renderSharesTable() {
+        var tbody = $('shares-table-body');
+        if (allShares.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 24px; color: #7f8c8d;">Aún no hay enlaces. Crea el primero arriba.</td></tr>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < allShares.length; i++) {
+            var s = allShares[i];
+            var expires = s.expires_at ? formatDateShort(s.expires_at) : 'Nunca';
+            html += '<tr>' +
+                '<td><a href="' + escapeHtml(s.og_image_url) + '" target="_blank" title="Ver miniatura"><img class="share-thumb" loading="lazy" src="' + escapeHtml(s.og_image_url) + '" alt=""></a></td>' +
+                '<td><strong>' + escapeHtml(s.recipient) + '</strong>' + (s.has_password ? ' <span title="Con contraseña">🔒</span>' : '') + '</td>' +
+                '<td>' + (s.company_name ? escapeHtml(s.company_name) : '<span style="color:#95a5a6">—</span>') + '</td>' +
+                '<td>' + escapeHtml(s.video_title || s.video_id) + '</td>' +
+                '<td>' + shareBadge(s.status) + '</td>' +
+                '<td>' + expires + '</td>' +
+                '<td><strong>' + s.visits + '</strong></td>' +
+                '<td><strong>' + formatWatched(s.watched_seconds) + '</strong></td>' +
+                '<td>' + (s.last_visit ? formatDateShort(s.last_visit) : '-') + '</td>' +
+                '<td style="white-space: nowrap;">' +
+                    '<button class="btn btn-copy btn-sm" id="share-copy-' + s.id + '" onclick="copyShareLink(' + s.id + ')">Copiar enlace</button> ' +
+                    (s.status !== 'revocado' ? '<button class="btn btn-edit btn-sm" onclick="editShare(' + s.id + ')">Editar marca</button> ' +
+                        '<button class="btn btn-delete btn-sm" onclick="revokeShare(' + s.id + ')">Revocar</button>' : '') +
+                '</td>' +
+                '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function findShare(id) {
+        for (var i = 0; i < allShares.length; i++) if (allShares[i].id === id) return allShares[i];
+        return null;
+    }
+
+    function copyText(text, onDone) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(onDone).catch(function() { fallbackCopyText(text, onDone); });
+        } else {
+            fallbackCopyText(text, onDone);
+        }
+    }
+
+    function fallbackCopyText(text, onDone) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); onDone(); } catch (e) { showToast('No se pudo copiar', 'error'); }
+        document.body.removeChild(ta);
+    }
+
+    function copyShareLink(id) {
+        var s = findShare(id);
+        if (!s) return;
+        copyText(s.url, function() {
+            var btn = $('share-copy-' + id);
+            if (btn) { btn.textContent = '¡Copiado!'; btn.style.backgroundColor = '#27ae60'; }
+            showToast('Enlace copiado', 'success');
+        });
+    }
+
+    function revokeShare(id) {
+        var s = findShare(id);
+        if (!s || !confirm('¿Revocar el enlace de "' + s.recipient + '"? Dejará de funcionar y no se puede deshacer.')) return;
+        fetch('/api/admin/shares/' + id + '/revoke', { method: 'POST' })
+            .then(checkAuth)
+            .then(function(r) {
+                if (r.ok) { showToast('Enlace revocado', 'success'); loadShares(); }
+                else return r.json().then(function(e) { showToast('Error: ' + e.error, 'error'); });
+            })
+            .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+    }
+
+    function setCreateOnlyDisabled(disabled) {
+        var els = document.querySelectorAll('.share-create-only');
+        for (var i = 0; i < els.length; i++) {
+            els[i].style.opacity = disabled ? '0.45' : '';
+            var inputs = els[i].querySelectorAll('input, select');
+            for (var j = 0; j < inputs.length; j++) inputs[j].disabled = disabled;
+        }
+    }
+
+    function editShare(id) {
+        var s = findShare(id);
+        if (!s) return;
+        editingShareId = id;
+        $('share-form-title').textContent = 'Editar marca del enlace de "' + s.recipient + '"';
+        $('share-submit-btn').textContent = 'Guardar y regenerar miniatura';
+        $('share-cancel-edit').style.display = '';
+        $('share-company-url').value = s.company_url || '';
+        $('share-company-name').value = s.company_name || '';
+        $('share-logo-url').value = s.company_logo_url || '';
+        setBrandColor(s.brand_color || '#0B2545');
+        $('share-video').value = s.video_id;
+        $('share-recipient').value = s.recipient;
+        setCreateOnlyDisabled(true);
+        $('share-result').style.display = 'none';
+        updateSharePreview();
+        $('shares-card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelShareEdit() {
+        editingShareId = null;
+        $('share-form-title').textContent = 'Crear enlace';
+        $('share-submit-btn').textContent = 'Crear enlace';
+        $('share-cancel-edit').style.display = 'none';
+        setCreateOnlyDisabled(false);
+        $('shareForm').reset();
+        setBrandColor('#0B2545');
+        $('share-expiry-date').style.display = 'none';
+        updateShareVideoSelect();
+    }
+
+    function setBrandColor(hex) {
+        hex = (hex || '').toUpperCase();
+        $('share-brand-color').value = hex;
+        if (/^#[0-9A-F]{6}$/.test(hex)) $('share-brand-color-picker').value = hex.toLowerCase();
+    }
+
+    $('share-brand-color-picker').addEventListener('input', function() { setBrandColor(this.value); updateSharePreview(); });
+    $('share-brand-color').addEventListener('input', updateSharePreview);
+    $('share-company-name').addEventListener('input', updateSharePreview);
+    $('share-logo-url').addEventListener('change', updateSharePreview);
+    $('share-video').addEventListener('change', updateSharePreview);
+    $('share-expiry').addEventListener('change', function() {
+        $('share-expiry-date').style.display = this.value === 'date' ? '' : 'none';
+    });
+
+    function updateSharePreview() {
+        var name = $('share-company-name').value.trim();
+        var video = null;
+        for (var i = 0; i < allVideos.length; i++) if (allVideos[i].video_id === $('share-video').value) video = allVideos[i];
+        $('share-preview-title').textContent = name ? name + ', tu demo de SolNow' : 'Tu demo de SolNow';
+        $('share-preview-desc').textContent = video ? video.title + ' · Mira cómo gestionar reservas, pagos y clientes en un solo sitio.' : '';
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(function() {
+            var q = 'name=' + encodeURIComponent(name) +
+                '&color=' + encodeURIComponent($('share-brand-color').value.trim()) +
+                '&logo=' + encodeURIComponent($('share-logo-url').value.trim());
+            $('share-preview-img').src = '/api/admin/shares/preview.jpg?' + q;
+        }, 400);
+    }
+
+    function analyzeCompany() {
+        var url = $('share-company-url').value.trim();
+        if (!url) { $('share-company-url').focus(); return; }
+        var btn = $('share-analyze-btn');
+        btn.disabled = true;
+        btn.textContent = 'Analizando…';
+        fetch('/api/admin/shares/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        })
+        .then(checkAuth)
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (!res.ok) { showToast(res.data.error || 'No se pudo analizar la web', 'error'); return; }
+            $('share-company-name').value = res.data.company_name || '';
+            $('share-logo-url').value = res.data.company_logo_url || '';
+            setBrandColor(res.data.brand_color || '#0B2545');
+            if (!res.data.company_logo_url) showToast('No encontré un logo utilizable; puedes pegar su URL a mano', 'error');
+            updateSharePreview();
+        })
+        .catch(function(err) { showToast('Error: ' + err.message, 'error'); })
+        .finally(function() { btn.disabled = false; btn.textContent = 'Analizar web'; });
+    }
+
+    $('shareForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var body = {
+            company_url: $('share-company-url').value.trim(),
+            company_name: $('share-company-name').value.trim(),
+            company_logo_url: $('share-logo-url').value.trim(),
+            brand_color: $('share-brand-color').value.trim()
+        };
+        var method = 'PUT', url = '/api/admin/shares/' + editingShareId;
+        if (editingShareId === null) {
+            method = 'POST';
+            url = '/api/admin/shares';
+            body.video_id = $('share-video').value;
+            body.recipient = $('share-recipient').value.trim();
+            body.password = $('share-password').value;
+            var exp = $('share-expiry').value;
+            if (exp === 'date') {
+                body.expires_on = $('share-expiry-date').value;
+                if (!body.expires_on) { $('share-expiry-date').focus(); return; }
+            } else if (exp) {
+                body.expires_in_days = parseInt(exp, 10);
+            }
+        }
+        var btn = $('share-submit-btn');
+        btn.disabled = true;
+        fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(checkAuth)
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                if (!res.ok) { showToast('Error: ' + (res.data.error || 'desconocido'), 'error'); return; }
+                var s = res.data;
+                var wasEditing = editingShareId !== null;
+                cancelShareEdit();
+                loadShares();
+                if (wasEditing) { showToast('Miniatura regenerada', 'success'); return; }
+                var box = $('share-result');
+                box.innerHTML = '<strong>Enlace creado para ' + escapeHtml(s.recipient) + ':</strong><br>' +
+                    '<span class="mono">' + escapeHtml(s.url) + '</span> ' +
+                    '<button type="button" class="btn btn-copy btn-sm" id="share-result-copy">Copiar</button>' +
+                    (s.has_password ? '<br><span style="color:#7f8c8d">Recuerda enviarle también la contraseña.</span>' : '');
+                box.style.display = 'block';
+                $('share-result-copy').onclick = function() { copyText(s.url, function() { showToast('Enlace copiado', 'success'); }); };
+                showToast('Enlace creado', 'success');
+            })
+            .catch(function(err) { showToast('Error: ' + err.message, 'error'); })
+            .finally(function() { btn.disabled = false; });
+    });
 
     // ========== S3 Upload ==========
     {{if .S3Enabled}}

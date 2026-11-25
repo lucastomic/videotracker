@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -65,20 +67,19 @@ func getClientIP(r *http.Request) string {
 		parts := strings.Split(forwarded, ",")
 		return strings.TrimSpace(parts[0])
 	}
-	
+
 	// Check X-Real-IP header
 	realIP := r.Header.Get("X-Real-IP")
 	if realIP != "" {
 		return realIP
 	}
-	
+
 	// Fall back to RemoteAddr
-	ip := r.RemoteAddr
-	// Remove port if present
-	if colon := strings.LastIndex(ip, ":"); colon != -1 {
-		ip = ip[:colon]
+	// Remove port if present (also handles "[::1]:1234")
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
-	return ip
+	return r.RemoteAddr
 }
 
 func main() {
@@ -124,62 +125,59 @@ func main() {
 		log.Println("S3 upload disabled - missing environment variables (S3_BUCKET, S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)")
 	}
 
+	// Thumbnails for share links live next to the database (/app/data/og).
+	ogDir = os.Getenv("OG_DIR")
+	if ogDir == "" {
+		ogDir = filepath.Join(filepath.Dir(dbPath), "og")
+	}
+
+	configureAuth()
+
 	// Parse templates
 	templates = template.Must(template.ParseGlob("templates/*.html"))
-
-	// Set up routes with logging middleware
-	http.HandleFunc("/", loggingMiddleware(handleHome))
-	http.HandleFunc("/watch", loggingMiddleware(handleWatch))
-	http.HandleFunc("/track", loggingMiddleware(handleTrack))
-	http.HandleFunc("/session/end", loggingMiddleware(handleSessionEnd))
-	http.HandleFunc("/admin", loggingMiddleware(handleAdmin))
-	
-	// Video management API endpoints
-	http.HandleFunc("/api/videos", loggingMiddleware(handleVideos))
-	http.HandleFunc("/api/videos/", loggingMiddleware(handleVideoByID))
-
-	// Admin data API (for AJAX polling)
-	http.HandleFunc("/api/admin/data", loggingMiddleware(handleAdminData))
-
-	// S3 upload endpoints
-	http.HandleFunc("/api/upload/presign", loggingMiddleware(handlePresignUpload))
-
-	// Serve static files
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Println("=== Video Tracker Server Starting ===")
 	log.Println("Server running on: http://localhost:8080")
 	log.Println("Admin dashboard: http://localhost:8080/admin")
 	log.Println("Watch page example: http://localhost:8080/watch?user_id=test123&video_id=boatexperience")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", newRouter()))
+}
+
+// newRouter wires every route. Admin pages/APIs go through requireAdmin.
+func newRouter() *http.ServeMux {
+	mux := http.NewServeMux()
+	page := func(h http.HandlerFunc) http.HandlerFunc { return loggingMiddleware(requireAdmin(h, false)) }
+	api := func(h http.HandlerFunc) http.HandlerFunc { return loggingMiddleware(requireAdmin(h, true)) }
+
+	// Public
+	mux.HandleFunc("/", loggingMiddleware(handleHome))
+	mux.HandleFunc("/watch", loggingMiddleware(handleWatch))
+	mux.HandleFunc("/track", loggingMiddleware(handleTrack))
+	mux.HandleFunc("/session/end", loggingMiddleware(handleSessionEnd))
+	mux.HandleFunc("/v/", loggingMiddleware(handleShare))
+	mux.HandleFunc("/og/", loggingMiddleware(handleOGImage))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Admin login
+	mux.HandleFunc("/admin/login", loggingMiddleware(handleLogin))
+	mux.HandleFunc("/admin/logout", loggingMiddleware(handleLogout))
+
+	// Admin (protected)
+	mux.HandleFunc("/admin", page(handleAdmin))
+	mux.HandleFunc("/admin/", page(http.NotFound))
+	mux.HandleFunc("/api/videos", api(handleVideos))
+	mux.HandleFunc("/api/videos/", api(handleVideoByID))
+	mux.HandleFunc("/api/admin/data", api(handleAdminData))
+	mux.HandleFunc("/api/admin/shares", api(handleAdminShares))
+	mux.HandleFunc("/api/admin/shares/", api(handleAdminShareByID))
+	mux.HandleFunc("/api/admin/", api(func(w http.ResponseWriter, r *http.Request) {
+		writeJSONError(w, http.StatusNotFound, "no encontrado")
+	}))
+	mux.HandleFunc("/api/upload/presign", api(handlePresignUpload))
+	return mux
 }
 
 func createTables() {
-	// First, check if we need to add the ip_address column to existing table
-	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='ip_address'").Scan(&count)
-	if err == nil && count == 0 {
-		// Add ip_address column to existing table
-		_, err = db.Exec("ALTER TABLE sessions ADD COLUMN ip_address TEXT DEFAULT ''")
-		if err != nil {
-			log.Printf("Warning: Could not add ip_address column: %v", err)
-		} else {
-			log.Println("Added ip_address column to existing sessions table")
-		}
-	}
-
-	// Check if we need to add thumbnail column to videos table
-	err = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name='thumbnail'").Scan(&count)
-	if err == nil && count == 0 {
-		// Add thumbnail column to existing table
-		_, err = db.Exec("ALTER TABLE videos ADD COLUMN thumbnail TEXT DEFAULT ''")
-		if err != nil {
-			log.Printf("Warning: Could not add thumbnail column: %v", err)
-		} else {
-			log.Println("Added thumbnail column to existing videos table")
-		}
-	}
-
 	query := `
 	CREATE TABLE IF NOT EXISTS sessions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -191,10 +189,7 @@ func createTables() {
 		total_time_watched INTEGER DEFAULT 0,
 		played_seconds TEXT DEFAULT '[]'
 	);
-	CREATE INDEX IF NOT EXISTS idx_user_id ON sessions(user_id);
-	CREATE INDEX IF NOT EXISTS idx_video_id ON sessions(video_id);
-	CREATE INDEX IF NOT EXISTS idx_ip_address ON sessions(ip_address);
-	
+
 	CREATE TABLE IF NOT EXISTS videos (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		video_id TEXT UNIQUE NOT NULL,
@@ -204,13 +199,25 @@ func createTables() {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-	CREATE INDEX IF NOT EXISTS idx_video_id ON videos(video_id);
 	`
+	if _, err := db.Exec(query); err != nil {
+		log.Fatal(err)
+	}
 
-	_, err = db.Exec(query)
+	// Columns added after the first release (idempotent migrations).
+	ensureColumn("sessions", "ip_address", "TEXT DEFAULT ''")
+	ensureColumn("videos", "thumbnail", "TEXT DEFAULT ''")
+
+	_, err := db.Exec(`
+	CREATE INDEX IF NOT EXISTS idx_user_id ON sessions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_video_id ON sessions(video_id);
+	CREATE INDEX IF NOT EXISTS idx_ip_address ON sessions(ip_address);
+	`)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	createShareTables()
 	log.Println("Database tables initialized")
 }
 
@@ -247,7 +254,7 @@ func handleWatch(w http.ResponseWriter, r *http.Request) {
 		"SELECT id, video_id, title, url, COALESCE(thumbnail, '') FROM videos WHERE video_id = ?",
 		videoID,
 	).Scan(&video.ID, &video.VideoID, &video.Title, &video.URL, &video.Thumbnail)
-	
+
 	if err == sql.ErrNoRows {
 		log.Printf("ERROR: Video not found - video_id: %s", videoID)
 		http.Error(w, "Video not found", http.StatusNotFound)
@@ -273,35 +280,18 @@ func handleWatch(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Session created successfully - Session ID: %d", sessionID)
 
 	// Get the full page URL for Open Graph
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	pageURL := fmt.Sprintf("%s://%s%s", scheme, r.Host, r.URL.String())
+	base := baseURL(r)
+	pageURL := base + r.URL.String()
 
 	// Use video thumbnail if available, otherwise default logo
 	thumbnail := video.Thumbnail
 	if thumbnail == "" {
-		// Use logo as fallback for social media preview
-		thumbnail = fmt.Sprintf("%s://%s/static/images/logo.png", scheme, r.Host)
-		log.Printf("Using default logo as thumbnail for video %s", videoID)
+		thumbnail = base + "/static/images/logo.png"
 	} else if !strings.HasPrefix(thumbnail, "http") {
-		// Make relative thumbnails absolute
-		thumbnail = fmt.Sprintf("%s://%s%s", scheme, r.Host, thumbnail)
-		log.Printf("Made thumbnail absolute: %s", thumbnail)
-	} else {
-		log.Printf("Using provided thumbnail: %s", thumbnail)
+		thumbnail = base + thumbnail
 	}
 
-	data := struct {
-		UserID     string
-		VideoID    string
-		VideoURL   string
-		VideoTitle string
-		SessionID  int64
-		PageURL    string
-		VideoThumb string
-	}{
+	data := watchData{
 		UserID:     userID,
 		VideoID:    videoID,
 		VideoURL:   video.URL,
@@ -315,6 +305,18 @@ func handleWatch(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// watchData feeds watch_standalone.html (legacy /watch and share links /v/).
+type watchData struct {
+	UserID     string
+	VideoID    string
+	VideoURL   string
+	VideoTitle string
+	SessionID  int64
+	PageURL    string
+	VideoThumb string
+	OG         *OGMeta // set for share links: summary_large_image tags
 }
 
 func handleTrack(w http.ResponseWriter, r *http.Request) {
@@ -408,7 +410,7 @@ func handleSessionEnd(w http.ResponseWriter, r *http.Request) {
 
 func handleAdmin(w http.ResponseWriter, r *http.Request) {
 	log.Println("Loading admin dashboard")
-	
+
 	// Get sessions
 	rows, err := db.Query(`
 		SELECT id, user_id, video_id, 
@@ -437,7 +439,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	var sessions []Session
 	hasIPColumn := true
-	
+
 	for rows.Next() {
 		var s Session
 		var leftAt sql.NullTime
@@ -454,7 +456,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			err = rows.Scan(&s.ID, &s.UserID, &s.VideoID, &s.EnteredAt, &leftAt, &s.TotalTimeWatched, &playedSecondsStr)
 		}
-		
+
 		if err != nil {
 			log.Printf("WARNING: Failed to scan row: %v", err)
 			continue
@@ -476,7 +478,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer videoRows.Close()
-	
+
 	var videos []Video
 	for videoRows.Next() {
 		var v Video
@@ -528,7 +530,7 @@ func handleVideoByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Video ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	switch r.Method {
 	case http.MethodGet:
 		getVideoByID(w, r, path)
@@ -550,7 +552,7 @@ func getVideos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	
+
 	var videos []Video
 	for rows.Next() {
 		var v Video
@@ -561,7 +563,7 @@ func getVideos(w http.ResponseWriter, r *http.Request) {
 		}
 		videos = append(videos, v)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(videos)
 }
@@ -573,12 +575,12 @@ func createVideo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	
+
 	if video.VideoID == "" || video.Title == "" || video.URL == "" {
 		http.Error(w, "video_id, title, and url are required", http.StatusBadRequest)
 		return
 	}
-	
+
 	result, err := db.Exec(
 		"INSERT INTO videos (video_id, title, url, thumbnail) VALUES (?, ?, ?, ?)",
 		video.VideoID, video.Title, video.URL, video.Thumbnail,
@@ -592,16 +594,16 @@ func createVideo(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	
+
 	id, _ := result.LastInsertId()
 	video.ID = id
-	
+
 	// Get the created video with timestamps
 	err = db.QueryRow("SELECT created_at, updated_at FROM videos WHERE id = ?", id).Scan(&video.CreatedAt, &video.UpdatedAt)
 	if err != nil {
 		log.Printf("WARNING: Failed to get timestamps: %v", err)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(video)
@@ -614,7 +616,7 @@ func getVideoByID(w http.ResponseWriter, r *http.Request, videoID string) {
 		"SELECT id, video_id, title, url, COALESCE(thumbnail, ''), created_at, updated_at FROM videos WHERE video_id = ?",
 		videoID,
 	).Scan(&video.ID, &video.VideoID, &video.Title, &video.URL, &video.Thumbnail, &video.CreatedAt, &video.UpdatedAt)
-	
+
 	if err == sql.ErrNoRows {
 		http.Error(w, "Video not found", http.StatusNotFound)
 		return
@@ -623,7 +625,7 @@ func getVideoByID(w http.ResponseWriter, r *http.Request, videoID string) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(video)
 }
@@ -635,12 +637,12 @@ func updateVideo(w http.ResponseWriter, r *http.Request, videoID string) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	
+
 	if video.Title == "" || video.URL == "" {
 		http.Error(w, "title and url are required", http.StatusBadRequest)
 		return
 	}
-	
+
 	result, err := db.Exec(
 		"UPDATE videos SET title = ?, url = ?, thumbnail = ?, updated_at = CURRENT_TIMESTAMP WHERE video_id = ?",
 		video.Title, video.URL, video.Thumbnail, videoID,
@@ -650,13 +652,13 @@ func updateVideo(w http.ResponseWriter, r *http.Request, videoID string) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		http.Error(w, "Video not found", http.StatusNotFound)
 		return
 	}
-	
+
 	// Get updated video
 	getVideoByID(w, r, videoID)
 }

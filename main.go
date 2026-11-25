@@ -63,8 +63,15 @@ func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header first (for proxies)
 	forwarded := r.Header.Get("X-Forwarded-For")
 	if forwarded != "" {
-		// Take the first IP in the chain
+		// Behind the GCP external load balancer (Gateway), the LB appends
+		// "<client-ip>, <lb-ip>" to whatever the client sent. The first values
+		// are client-controlled and spoofable (which would bypass the login/
+		// password rate limits), so use the second-to-last one, which the LB
+		// itself wrote. With a single value, that is the one to use.
 		parts := strings.Split(forwarded, ",")
+		if len(parts) >= 2 {
+			return strings.TrimSpace(parts[len(parts)-2])
+		}
 		return strings.TrimSpace(parts[0])
 	}
 

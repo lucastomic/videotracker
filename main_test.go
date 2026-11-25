@@ -564,3 +564,18 @@ func TestTextFitting(t *testing.T) {
 		t.Errorf("long name should be truncated: %v %v", size, lines)
 	}
 }
+
+func TestGetClientIPForwardedFor(t *testing.T) {
+	cases := []struct{ xff, want string }{
+		{"1.1.1.1, 203.0.113.7, 34.0.0.1", "203.0.113.7"},
+		{"203.0.113.7, 34.0.0.1", "203.0.113.7"},
+		{"203.0.113.7", "203.0.113.7"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("X-Forwarded-For", c.xff)
+		if got := getClientIP(req); got != c.want {
+			t.Errorf("XFF %q: got %q, want %q", c.xff, got, c.want)
+		}
+	}
+}

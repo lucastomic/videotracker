@@ -84,7 +84,7 @@ func TestAdminRoutesRequireSession(t *testing.T) {
 		{"PUT", "/api/videos/demo"}, {"DELETE", "/api/videos/demo"}, {"GET", "/api/admin/data"},
 		{"GET", "/api/admin/shares"}, {"POST", "/api/admin/shares"}, {"POST", "/api/admin/shares/preview"},
 		{"GET", "/api/admin/shares/preview.jpg"}, {"POST", "/api/admin/shares/1/revoke"},
-		{"GET", "/api/admin/whatever"}, {"POST", "/api/upload/presign"},
+		{"GET", "/api/admin/whatever"}, {"POST", "/api/upload/start"}, {"POST", "/api/upload/complete"},
 	}
 	for _, a := range apis {
 		rec := do(t, a.method, a.path, "")

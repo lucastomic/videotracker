@@ -20,16 +20,59 @@ A minimal web application to track video watch time using Go, HTMX, and HTML tem
 | `DB_PATH` | No | Ruta del SQLite (por defecto `./video_tracker.db`; en GKE `/app/data/video_tracker.db`). |
 | `OG_DIR` | No | Carpeta de las miniaturas de WhatsApp. Por defecto `og/` junto a la base de datos (`/app/data/og`). |
 | `PUBLIC_BASE_URL` | No | URL pública, p. ej. `https://demos.solnow.io`, para las etiquetas Open Graph. Si no se define se usa `X-Forwarded-Proto` + `Host`. |
-| `S3_BUCKET`, `S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | No | Subida directa de vídeos a S3 desde el admin. |
+| `GCS_BUCKET` | No | Bucket de Google Cloud Storage para subir vídeos desde el admin (p. ej. `solnow-demos`). Si falta, la zona de subida aparece desactivada y `/api/upload/*` responde `503`. |
+| `GCS_PREFIX` | No | Carpeta dentro del bucket. Por defecto `videos/`. |
+
+> Las variables antiguas de S3 (`S3_BUCKET`, `AWS_*`) ya no se usan. Los vídeos dados de alta con URL de S3 siguen funcionando: solo son URLs.
 
 ### Acceso al admin
 
 - `/admin/login` (formulario) y `/admin/logout`. La sesión es una cookie `HttpOnly; Secure; SameSite=Lax` firmada, válida 30 días.
 - Máximo 10 intentos fallidos por IP cada 15 minutos (IP = primer valor de `X-Forwarded-For`).
-- Protegido: `/admin`, `/api/videos`, `/api/videos/*`, `/api/admin/*`, `/api/upload/presign`. Sin sesión, las APIs devuelven `401` JSON y las páginas redirigen al login.
+- Protegido: `/admin`, `/api/videos`, `/api/videos/*`, `/api/admin/*`, `/api/upload/start`, `/api/upload/complete`. Sin sesión, las APIs devuelven `401` JSON y las páginas redirigen al login.
 - Público: `/`, `/watch`, `/track`, `/session/end`, `/static/*`, `/v/{token}`, `/og/{token}.jpg`. Los enlaces antiguos `/watch?video_id=..&user_id=..` siguen funcionando igual.
 
 > Nota: las cookies llevan `Secure`, así que el login necesita HTTPS (o `http://localhost`, que los navegadores tratan como seguro).
+
+## Subir vídeos a Google Cloud Storage
+
+En el admin, arriba de **Video Management**, arrastra uno o varios vídeos a la zona (o haz clic para elegirlos). Para cada archivo revisa el **Título** (por defecto, el nombre del archivo) y el **ID del vídeo** (por defecto, el título en slug; solo `a-z`, `0-9` y `-`, único) y pulsa **Subir**. Los archivos se suben uno detrás de otro, con barra de progreso, MB, velocidad y tiempo restante; se puede cancelar. Al terminar, el vídeo queda dado de alta con la URL pública `https://storage.googleapis.com/<bucket>/<objeto>` y aparece **Crear enlace para compartir** con ese vídeo ya elegido.
+
+Cómo funciona (los 1–3 GB **no pasan por el servidor**):
+
+1. `POST /api/upload/start` `{filename, size, content_type, title, video_id}`: valida (solo `video/*`, máx. 5 GB, ID válido y libre), elige el nombre `videos/<AAAAMMDD-HHMMSS>-<slug>.<ext>` y abre una **sesión de subida reanudable** de GCS con el token de la cuenta de servicio (Workload Identity; sin claves ni `signBlob`). La sesión se ata al origen del navegador (`PUBLIC_BASE_URL`, o `X-Forwarded-Proto` + `Host`). Se usa `ifGenerationMatch=0`, así que nunca sobrescribe un objeto existente.
+2. El navegador hace `PUT` al `session_url` en trozos de 16 MiB con `Content-Range` (lee el archivo con `File.slice`, sin cargarlo entero en memoria). `308` = sigue (la cabecera `Range` dice hasta dónde llegó); `200/201` = terminado. Ante error de red, `5xx`, `408` o `429`, espera exponencial (1 s → 60 s, 8 reintentos) y pregunta el estado con un `PUT` vacío `Content-Range: bytes */<tamaño>`. Si se agotan los reintentos, el botón **Reanudar** continúa la misma sesión.
+3. `POST /api/upload/complete` `{object, title, video_id}`: comprueba en GCS que el objeto existe (metadatos por la JSON API) y crea el vídeo.
+
+### Permisos y configuración del bucket
+
+- La cuenta de servicio de Google del pod (Workload Identity) necesita **`roles/storage.objectAdmin`** en el bucket:
+
+  ```bash
+  gcloud storage buckets add-iam-policy-binding gs://solnow-demos \
+    --member="serviceAccount:<GSA>@<PROYECTO>.iam.gserviceaccount.com" --role="roles/storage.objectAdmin"
+  ```
+
+- Los objetos deben poder leerse públicamente (los reproduce el navegador del cliente), p. ej. `allUsers` con `roles/storage.objectViewer` en el bucket.
+- **CORS** del bucket para el origen del admin (sin esto el navegador no puede subir):
+
+  ```json
+  [
+    {
+      "origin": ["https://demos.solnow.io"],
+      "method": ["PUT", "POST", "GET"],
+      "responseHeader": ["Content-Type", "Content-Range", "Range", "x-goog-resumable"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+  ```
+
+  ```bash
+  gcloud storage buckets update gs://solnow-demos --cors-file=cors.json
+  ```
+
+  `Range` tiene que estar en `responseHeader` (cabecera expuesta): el navegador la lee para saber cuánto ha recibido GCS. Para probar en local añade también `http://localhost:8080` al `origin` y define `PUBLIC_BASE_URL=http://localhost:8080`.
+- En local la app usa las Application Default Credentials (`gcloud auth application-default login`).
 
 ## Enlaces para compartir (`/v/{token}`)
 
@@ -73,6 +116,7 @@ videoTracker/
 ├── shares.go               # Share links (/v/{token}), OG images, admin API
 ├── fetchmeta.go            # SSRF-safe fetch + company name/logo/color extraction
 ├── ogimage.go              # 1200x630 WhatsApp thumbnail composition
+├── gcsupload.go            # Direct browser -> GCS resumable uploads
 ├── templates/              # HTML templates
 ├── static/images/logo.png  # SolNow logo
 └── go.mod                  # Go module file

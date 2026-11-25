@@ -586,9 +586,11 @@
                         <label for="share-logo-url">URL del logo</label>
                         <input type="text" id="share-logo-url" class="input-field" placeholder="https://... (PNG, JPG o WebP; SVG no)">
                     </div>
-                    <div class="field share-create-only">
-                        <label for="share-password">Contraseña (opcional)</label>
-                        <input type="text" id="share-password" class="input-field" placeholder="Sin contraseña" maxlength="72">
+                    <div class="field">
+                        <label for="share-access-code" id="share-access-code-label">Clave para ver el vídeo (opcional)</label>
+                        <input type="text" id="share-access-code" name="share-access-code" class="input-field" placeholder="Sin clave" maxlength="72"
+                               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                               data-bwignore="true" data-1p-ignore data-lpignore="true" data-form-type="other">
                     </div>
                     <div class="field share-create-only">
                         <label for="share-expiry">Caducidad</label>
@@ -1282,7 +1284,7 @@
             var expires = s.expires_at ? formatDateShort(s.expires_at) : 'Nunca';
             html += '<tr>' +
                 '<td><a href="' + escapeHtml(s.og_image_url) + '" target="_blank" title="Ver miniatura"><img class="share-thumb" loading="lazy" src="' + escapeHtml(s.og_image_url) + '" alt=""></a></td>' +
-                '<td><strong>' + escapeHtml(s.recipient) + '</strong>' + (s.has_password ? ' <span title="Con contraseña">🔒</span>' : '') + '</td>' +
+                '<td><strong>' + escapeHtml(s.recipient) + '</strong>' + (s.has_password ? ' <span title="Con clave">🔒</span>' : '') + '</td>' +
                 '<td>' + (s.company_name ? escapeHtml(s.company_name) : '<span style="color:#95a5a6">—</span>') + '</td>' +
                 '<td>' + escapeHtml(s.video_title || s.video_id) + '</td>' +
                 '<td>' + shareBadge(s.status) + '</td>' +
@@ -1292,7 +1294,8 @@
                 '<td>' + (s.last_visit ? formatDateShort(s.last_visit) : '-') + '</td>' +
                 '<td style="white-space: nowrap;">' +
                     '<button class="btn btn-copy btn-sm" id="share-copy-' + s.id + '" onclick="copyShareLink(' + s.id + ')">Copiar enlace</button> ' +
-                    (s.status !== 'revocado' ? '<button class="btn btn-edit btn-sm" onclick="editShare(' + s.id + ')">Editar marca</button> ' +
+                    (s.status !== 'revocado' ? '<button class="btn btn-edit btn-sm" onclick="editShare(' + s.id + ')">Editar</button> ' +
+                        (s.has_password ? '<button class="btn btn-delete btn-sm" onclick="removeSharePassword(' + s.id + ')">Quitar clave</button> ' : '') +
                         '<button class="btn btn-delete btn-sm" onclick="revokeShare(' + s.id + ')">Revocar</button>' : '') +
                 '</td>' +
                 '</tr>';
@@ -1346,6 +1349,25 @@
             .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
     }
 
+    function removeSharePassword(id) {
+        var s = findShare(id);
+        if (!s || !confirm('¿Quitar la clave del enlace de "' + s.recipient + '"? Cualquiera con el enlace podrá verlo.')) return;
+        fetch('/api/admin/shares/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company_url: s.company_url || '', company_name: s.company_name || '',
+                company_logo_url: s.company_logo_url || '', brand_color: s.brand_color || '', remove_password: true })
+        })
+            .then(checkAuth)
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                if (!res.ok) { showToast('Error: ' + (res.data.error || 'desconocido'), 'error'); return; }
+                showToast('Clave quitada: el enlace es abierto', 'success');
+                loadShares();
+            })
+            .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+    }
+
     function setCreateOnlyDisabled(disabled) {
         var els = document.querySelectorAll('.share-create-only');
         for (var i = 0; i < els.length; i++) {
@@ -1369,6 +1391,9 @@
         $('share-video').value = s.video_id;
         $('share-recipient').value = s.recipient;
         setCreateOnlyDisabled(true);
+        $('share-access-code').value = '';
+        $('share-access-code').placeholder = s.has_password ? 'Vacío = mantener la clave actual' : 'Sin clave';
+        $('share-access-code-label').textContent = 'Nueva clave (opcional)';
         $('share-result').style.display = 'none';
         updateSharePreview();
         $('shares-card').scrollIntoView({ behavior: 'smooth' });
@@ -1381,6 +1406,9 @@
         $('share-cancel-edit').style.display = 'none';
         setCreateOnlyDisabled(false);
         $('shareForm').reset();
+        $('share-access-code').value = '';
+        $('share-access-code').placeholder = 'Sin clave';
+        $('share-access-code-label').textContent = 'Clave para ver el vídeo (opcional)';
         setBrandColor('#0B2545');
         $('share-expiry-date').style.display = 'none';
         updateShareVideoSelect();
@@ -1449,13 +1477,14 @@
             company_logo_url: $('share-logo-url').value.trim(),
             brand_color: $('share-brand-color').value.trim()
         };
+        var code = $('share-access-code').value;
+        if (code) body.password = code;
         var method = 'PUT', url = '/api/admin/shares/' + editingShareId;
         if (editingShareId === null) {
             method = 'POST';
             url = '/api/admin/shares';
             body.video_id = $('share-video').value;
             body.recipient = $('share-recipient').value.trim();
-            body.password = $('share-password').value;
             var exp = $('share-expiry').value;
             if (exp === 'date') {
                 body.expires_on = $('share-expiry-date').value;
@@ -1475,12 +1504,13 @@
                 var wasEditing = editingShareId !== null;
                 cancelShareEdit();
                 loadShares();
-                if (wasEditing) { showToast('Miniatura regenerada', 'success'); return; }
+                if (wasEditing) { showToast(code ? 'Guardado; clave cambiada' : 'Guardado', 'success'); return; }
                 var box = $('share-result');
                 box.innerHTML = '<strong>Enlace creado para ' + escapeHtml(s.recipient) + ':</strong><br>' +
                     '<span class="mono">' + escapeHtml(s.url) + '</span> ' +
                     '<button type="button" class="btn btn-copy btn-sm" id="share-result-copy">Copiar</button>' +
-                    (s.has_password ? '<br><span style="color:#7f8c8d">Recuerda enviarle también la contraseña.</span>' : '');
+                    (s.has_password ? '<br><strong style="color:#c0392b">Con clave</strong> <span style="color:#7f8c8d">— recuerda enviarle también la clave.</span>'
+                        : '<br><strong style="color:#27ae60">Sin clave</strong> <span style="color:#7f8c8d">— cualquiera con el enlace puede verlo.</span>');
                 box.style.display = 'block';
                 $('share-result-copy').onclick = function() { copyText(s.url, function() { showToast('Enlace copiado', 'success'); }); };
                 showToast('Enlace creado', 'success');

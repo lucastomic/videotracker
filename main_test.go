@@ -371,6 +371,43 @@ func TestSharePassword(t *testing.T) {
 	}
 }
 
+func TestShareChangeAndRemovePassword(t *testing.T) {
+	s := createTestShare(t, `{"video_id":"demo","recipient":"cambio","password":"vieja"}`)
+	put := func(body string) Share {
+		t.Helper()
+		rec := do(t, "PUT", "/api/admin/shares/"+strconv.FormatInt(s.ID, 10), body, adminCookie())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT: %d %s", rec.Code, rec.Body.String())
+		}
+		var out Share
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if !put(`{"company_name":"X"}`).HasPassword {
+		t.Fatal("password should be kept when no password fields are sent")
+	}
+	if !put(`{"password":"nueva"}`).HasPassword {
+		t.Fatal("password should remain after change")
+	}
+	shareLimiter.reset("203.0.113.7")
+	defer shareLimiter.reset("203.0.113.7")
+	if rec := do(t, "POST", "/v/"+s.Token, "password=vieja"); rec.Code == http.StatusSeeOther {
+		t.Error("old password still accepted")
+	}
+	if rec := do(t, "POST", "/v/"+s.Token, "password=nueva"); rec.Code != http.StatusSeeOther {
+		t.Errorf("new password rejected: %d", rec.Code)
+	}
+	if put(`{"remove_password":true}`).HasPassword {
+		t.Fatal("password should be removed")
+	}
+	rec := do(t, "GET", "/v/"+s.Token, "")
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `type="password"`) || !strings.Contains(rec.Body.String(), testVideoURL) {
+		t.Errorf("link should be open after removal: %d", rec.Code)
+	}
+}
+
 func TestShareValidation(t *testing.T) {
 	c := adminCookie()
 	for _, body := range []string{

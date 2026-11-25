@@ -466,6 +466,7 @@ type shareRequest struct {
 	CompanyLogoURL string `json:"company_logo_url"`
 	BrandColor     string `json:"brand_color"`
 	Password       string `json:"password"`
+	RemovePassword bool   `json:"remove_password"` // PUT only: drop the password
 	ExpiresInDays  int    `json:"expires_in_days"`
 	ExpiresOn      string `json:"expires_on"` // YYYY-MM-DD, end of day Europe/Madrid
 }
@@ -669,6 +670,20 @@ func handleAdminShareByID(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		// Optional password change: remove_password clears it, a non-empty
+		// password replaces it, otherwise it is left untouched.
+		newHash, setHash := "", false
+		switch {
+		case req.RemovePassword:
+			setHash = true
+		case req.Password != "":
+			h, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+			if err != nil {
+				writeJSONError(w, http.StatusBadRequest, "clave no válida (máx 72 bytes)")
+				return
+			}
+			newHash, setHash = string(h), true
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		logo := fillBranding(ctx, &req)
@@ -676,6 +691,13 @@ func handleAdminShareByID(w http.ResponseWriter, r *http.Request) {
 			req.CompanyName, req.CompanyURL, req.CompanyLogoURL, req.BrandColor, id); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+		if setHash {
+			if _, err := db.Exec(`UPDATE shares SET password_hash = ? WHERE id = ?`, newHash, id); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			log.Printf("Share password updated - token: %s, has_password: %t", s.Token, newHash != "")
 		}
 		s, _ = getShareByID(id)
 		if err := writeOGImage(s, logo); err != nil {

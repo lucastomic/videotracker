@@ -13,11 +13,11 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY main.go .
+# Copy source code (all files of package main; tests excluded from the build)
+COPY *.go ./
 
 # Build the application
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o videotracker main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o videotracker .
 
 # Runtime stage
 FROM --platform=linux/amd64 alpine:3.19

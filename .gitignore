@@ -1,0 +1,12 @@
+# Binaries
+/main
+/videotracker
+
+# SQLite databases and generated thumbnails
+*.db
+*.db-journal
+data/
+og/
+
+# Local scratch
+.manual/

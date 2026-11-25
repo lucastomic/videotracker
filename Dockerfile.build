@@ -1,5 +1,5 @@
 # Build stage for creating Ubuntu-compatible binary (AMD64)
-FROM --platform=linux/amd64 golang:1.22 AS builder
+FROM --platform=linux/amd64 golang:1.24 AS builder
 
 # Install build dependencies for SQLite
 RUN apt-get update && apt-get install -y \
@@ -19,14 +19,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY main.go ./
+COPY *.go ./
 
 # Build for Linux AMD64 explicitly
 ENV GOOS=linux
 ENV GOARCH=amd64
 ENV CGO_ENABLED=1
 
-RUN go build -a -ldflags '-w -s' -o videotracker main.go
+RUN go build -a -ldflags '-w -s' -o videotracker .
 
 # Verify the binary architecture
 RUN file videotracker && echo "Binary architecture verified"

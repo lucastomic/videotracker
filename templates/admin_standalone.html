@@ -321,19 +321,46 @@
         .toast.success { background-color: #106695; }
         .toast.error { background-color: #c0392b; }
 
-        /* ===== Upload ===== */
-        .upload-area {
-            margin-bottom: 12px;
-            padding: 20px;
-            border: 2px dashed #d1d9e0;
-            border-radius: 8px;
+        /* ===== Upload (GCS) ===== */
+        .dropzone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 170px;
+            padding: 28px 20px;
+            margin-bottom: 16px;
+            border: 3px dashed #9fbfd6;
+            border-radius: 12px;
+            background: #f4f9fc;
             text-align: center;
-            transition: border-color 0.2s, background-color 0.2s;
+            cursor: pointer;
+            transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
         }
-        .upload-area.dragover {
-            border-color: #4A90C0;
-            background-color: #e8f4fa;
+        .dropzone:hover, .dropzone:focus { border-color: #4A90C0; background: #eaf4fb; outline: none; }
+        .dropzone.dragover { border-color: #106695; background: #d6eef8; transform: scale(1.01); }
+        .dropzone .dz-icon { font-size: 40px; line-height: 1; color: #106695; }
+        .dropzone .dz-title { font-size: 17px; font-weight: 600; color: #083954; }
+        .dropzone .dz-sub { font-size: 12px; color: #7f8c8d; }
+        .dropzone.disabled { cursor: not-allowed; border-color: #d1d9e0; background: #f4f5f6; }
+        .dropzone.disabled .dz-icon, .dropzone.disabled .dz-title { color: #95a5a6; }
+        .upload-queue { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+        .upload-item {
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 12px 14px;
+            background: white;
+            font-size: 13px;
         }
+        .upload-item.done { border-color: #b7e1c7; background: #f3fbf6; }
+        .upload-item.error { border-color: #f1b0a8; background: #fdf5f4; }
+        .upload-item .ui-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        .upload-item .ui-name { font-weight: 600; color: #083954; word-break: break-all; }
+        .upload-item .ui-state { font-size: 12px; color: #7f8c8d; }
+        .upload-item .ui-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 10px; }
+        .upload-item .ui-msg { margin-top: 8px; font-size: 12px; }
+        .upload-item .ui-msg.err { color: #c0392b; }
         .progress-bar-container {
             background-color: #e9ecef;
             border-radius: 6px;
@@ -350,6 +377,11 @@
             font-size: 11px;
             line-height: 22px;
             border-radius: 6px;
+            white-space: nowrap;
+        }
+        .progress-stats { margin-top: 5px; font-size: 12px; color: #4a5a68; }
+        @media (max-width: 768px) {
+            .upload-item .ui-form { grid-template-columns: 1fr; }
         }
 
         /* ===== Details ===== */
@@ -586,9 +618,11 @@
                         <label for="share-logo-url">URL del logo</label>
                         <input type="text" id="share-logo-url" class="input-field" placeholder="https://... (PNG, JPG o WebP; SVG no)">
                     </div>
-                    <div class="field share-create-only">
-                        <label for="share-password">Contraseña (opcional)</label>
-                        <input type="text" id="share-password" class="input-field" placeholder="Sin contraseña" maxlength="72">
+                    <div class="field">
+                        <label for="share-access-code" id="share-access-code-label">Clave para ver el vídeo (opcional)</label>
+                        <input type="text" id="share-access-code" name="share-access-code" class="input-field" placeholder="Sin clave" maxlength="72"
+                               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                               data-bwignore="true" data-1p-ignore data-lpignore="true" data-form-type="other">
                     </div>
                     <div class="field share-create-only">
                         <label for="share-expiry">Caducidad</label>
@@ -646,11 +680,28 @@
     </div>
 
     <!-- Video Management -->
-    <div class="card">
+    <div class="card" id="videos-card">
         <h2>Video Management</h2>
 
+        <!-- Subida directa a Google Cloud Storage -->
+        {{if .GCSEnabled}}
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Subir vídeo">
+            <div class="dz-icon">⬆</div>
+            <div class="dz-title">Arrastra aquí un vídeo o haz clic para elegirlo</div>
+            <div class="dz-sub">MP4, MOV, WebM… hasta 5 GB. Se sube directo del navegador a Google Cloud Storage (<span class="mono">{{.GCSBucket}}</span>). Puedes soltar varios: se suben uno detrás de otro.</div>
+        </div>
+        <input type="file" id="upload-file-input" accept="video/*" multiple style="display: none;">
+        {{else}}
+        <div class="dropzone disabled" id="dropzone" aria-disabled="true">
+            <div class="dz-icon">⬆</div>
+            <div class="dz-title">Subida de vídeos desactivada</div>
+            <div class="dz-sub">Falta configurar <span class="mono">GCS_BUCKET</span> en el servidor (ver README). Mientras tanto puedes añadir vídeos por URL abajo.</div>
+        </div>
+        {{end}}
+        <div class="upload-queue" id="upload-queue"></div>
+
         <div style="background: #f4f7f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #083954;">Add New Video</h3>
+            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #083954;">Añadir vídeo por URL</h3>
             <form id="addVideoForm">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <input type="text" id="videoId" placeholder="Video ID" required class="input-field">
@@ -660,22 +711,6 @@
                     <input type="url" id="videoUrl" placeholder="Video URL (e.g., S3, CDN)" required class="input-field">
                     <input type="url" id="videoThumb" placeholder="Thumbnail URL (optional)" class="input-field">
                 </div>
-                {{if .S3Enabled}}
-                <div class="upload-area" id="uploadArea">
-                    <p style="margin: 0 0 10px 0; color: #7f8c8d; font-size: 13px;">Or upload a video file directly to S3:</p>
-                    <input type="file" id="videoFile" accept="video/*" style="display: none;" onchange="handleFileSelect(this)">
-                    <button type="button" onclick="document.getElementById('videoFile').click()" class="btn btn-primary">
-                        Choose Video File
-                    </button>
-                    <p id="selectedFileName" style="margin: 5px 0 0 0; font-size: 12px; color: #999;"></p>
-                    <div id="uploadProgress" style="display: none; margin-top: 10px;">
-                        <div class="progress-bar-container">
-                            <div class="progress-bar" id="progressBar">0%</div>
-                        </div>
-                        <p id="uploadStatus" style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Uploading...</p>
-                    </div>
-                </div>
-                {{end}}
                 <button type="submit" class="btn-submit">Add Video</button>
             </form>
         </div>
@@ -1185,10 +1220,6 @@
             if (response.ok) {
                 showToast('Video added successfully!', 'success');
                 document.getElementById('addVideoForm').reset();
-                var sf = document.getElementById('selectedFileName');
-                if (sf) sf.textContent = '';
-                var up = document.getElementById('uploadProgress');
-                if (up) up.style.display = 'none';
                 refreshDataNow();
             } else {
                 return response.text().then(function(text) { showToast('Error: ' + text, 'error'); });
@@ -1282,7 +1313,7 @@
             var expires = s.expires_at ? formatDateShort(s.expires_at) : 'Nunca';
             html += '<tr>' +
                 '<td><a href="' + escapeHtml(s.og_image_url) + '" target="_blank" title="Ver miniatura"><img class="share-thumb" loading="lazy" src="' + escapeHtml(s.og_image_url) + '" alt=""></a></td>' +
-                '<td><strong>' + escapeHtml(s.recipient) + '</strong>' + (s.has_password ? ' <span title="Con contraseña">🔒</span>' : '') + '</td>' +
+                '<td><strong>' + escapeHtml(s.recipient) + '</strong>' + (s.has_password ? ' <span title="Con clave">🔒</span>' : '') + '</td>' +
                 '<td>' + (s.company_name ? escapeHtml(s.company_name) : '<span style="color:#95a5a6">—</span>') + '</td>' +
                 '<td>' + escapeHtml(s.video_title || s.video_id) + '</td>' +
                 '<td>' + shareBadge(s.status) + '</td>' +
@@ -1292,7 +1323,8 @@
                 '<td>' + (s.last_visit ? formatDateShort(s.last_visit) : '-') + '</td>' +
                 '<td style="white-space: nowrap;">' +
                     '<button class="btn btn-copy btn-sm" id="share-copy-' + s.id + '" onclick="copyShareLink(' + s.id + ')">Copiar enlace</button> ' +
-                    (s.status !== 'revocado' ? '<button class="btn btn-edit btn-sm" onclick="editShare(' + s.id + ')">Editar marca</button> ' +
+                    (s.status !== 'revocado' ? '<button class="btn btn-edit btn-sm" onclick="editShare(' + s.id + ')">Editar</button> ' +
+                        (s.has_password ? '<button class="btn btn-delete btn-sm" onclick="removeSharePassword(' + s.id + ')">Quitar clave</button> ' : '') +
                         '<button class="btn btn-delete btn-sm" onclick="revokeShare(' + s.id + ')">Revocar</button>' : '') +
                 '</td>' +
                 '</tr>';
@@ -1346,6 +1378,25 @@
             .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
     }
 
+    function removeSharePassword(id) {
+        var s = findShare(id);
+        if (!s || !confirm('¿Quitar la clave del enlace de "' + s.recipient + '"? Cualquiera con el enlace podrá verlo.')) return;
+        fetch('/api/admin/shares/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company_url: s.company_url || '', company_name: s.company_name || '',
+                company_logo_url: s.company_logo_url || '', brand_color: s.brand_color || '', remove_password: true })
+        })
+            .then(checkAuth)
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                if (!res.ok) { showToast('Error: ' + (res.data.error || 'desconocido'), 'error'); return; }
+                showToast('Clave quitada: el enlace es abierto', 'success');
+                loadShares();
+            })
+            .catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+    }
+
     function setCreateOnlyDisabled(disabled) {
         var els = document.querySelectorAll('.share-create-only');
         for (var i = 0; i < els.length; i++) {
@@ -1369,6 +1420,9 @@
         $('share-video').value = s.video_id;
         $('share-recipient').value = s.recipient;
         setCreateOnlyDisabled(true);
+        $('share-access-code').value = '';
+        $('share-access-code').placeholder = s.has_password ? 'Vacío = mantener la clave actual' : 'Sin clave';
+        $('share-access-code-label').textContent = 'Nueva clave (opcional)';
         $('share-result').style.display = 'none';
         updateSharePreview();
         $('shares-card').scrollIntoView({ behavior: 'smooth' });
@@ -1381,6 +1435,9 @@
         $('share-cancel-edit').style.display = 'none';
         setCreateOnlyDisabled(false);
         $('shareForm').reset();
+        $('share-access-code').value = '';
+        $('share-access-code').placeholder = 'Sin clave';
+        $('share-access-code-label').textContent = 'Clave para ver el vídeo (opcional)';
         setBrandColor('#0B2545');
         $('share-expiry-date').style.display = 'none';
         updateShareVideoSelect();
@@ -1449,13 +1506,14 @@
             company_logo_url: $('share-logo-url').value.trim(),
             brand_color: $('share-brand-color').value.trim()
         };
+        var code = $('share-access-code').value;
+        if (code) body.password = code;
         var method = 'PUT', url = '/api/admin/shares/' + editingShareId;
         if (editingShareId === null) {
             method = 'POST';
             url = '/api/admin/shares';
             body.video_id = $('share-video').value;
             body.recipient = $('share-recipient').value.trim();
-            body.password = $('share-password').value;
             var exp = $('share-expiry').value;
             if (exp === 'date') {
                 body.expires_on = $('share-expiry-date').value;
@@ -1475,12 +1533,13 @@
                 var wasEditing = editingShareId !== null;
                 cancelShareEdit();
                 loadShares();
-                if (wasEditing) { showToast('Miniatura regenerada', 'success'); return; }
+                if (wasEditing) { showToast(code ? 'Guardado; clave cambiada' : 'Guardado', 'success'); return; }
                 var box = $('share-result');
                 box.innerHTML = '<strong>Enlace creado para ' + escapeHtml(s.recipient) + ':</strong><br>' +
                     '<span class="mono">' + escapeHtml(s.url) + '</span> ' +
                     '<button type="button" class="btn btn-copy btn-sm" id="share-result-copy">Copiar</button>' +
-                    (s.has_password ? '<br><span style="color:#7f8c8d">Recuerda enviarle también la contraseña.</span>' : '');
+                    (s.has_password ? '<br><strong style="color:#c0392b">Con clave</strong> <span style="color:#7f8c8d">— recuerda enviarle también la clave.</span>'
+                        : '<br><strong style="color:#27ae60">Sin clave</strong> <span style="color:#7f8c8d">— cualquiera con el enlace puede verlo.</span>');
                 box.style.display = 'block';
                 $('share-result-copy').onclick = function() { copyText(s.url, function() { showToast('Enlace copiado', 'success'); }); };
                 showToast('Enlace creado', 'success');
@@ -1489,75 +1548,440 @@
             .finally(function() { btn.disabled = false; });
     });
 
-    // ========== S3 Upload ==========
-    {{if .S3Enabled}}
-    var uploadArea = document.getElementById('uploadArea');
-    uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); uploadArea.classList.add('dragover'); });
-    uploadArea.addEventListener('dragleave', function() { uploadArea.classList.remove('dragover'); });
-    uploadArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            document.getElementById('videoFile').files = e.dataTransfer.files;
-            handleFileSelect(document.getElementById('videoFile'));
+    // ========== Subida directa a Google Cloud Storage (reanudable) ==========
+    var GCS_ENABLED = {{.GCSEnabled}};
+    var UPLOAD_CHUNK = 16 * 1024 * 1024;          // 16 MiB, múltiplo de 256 KiB (exigido por GCS)
+    var UPLOAD_MAX = 5 * 1024 * 1024 * 1024;      // 5 GB
+    var UPLOAD_MAX_RETRIES = 8;
+    var VIDEO_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
+    var VIDEO_EXT_TYPES = { mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
+        mkv: 'video/x-matroska', avi: 'video/x-msvideo', mpg: 'video/mpeg', mpeg: 'video/mpeg', ogv: 'video/ogg' };
+    var uploadQueue = [];
+    var uploadSeq = 0;
+    var uploadRunning = false;
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return Math.round(bytes) + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function formatEta(sec) {
+        if (!isFinite(sec) || sec < 0) return '';
+        sec = Math.round(sec);
+        if (sec < 60) return sec + ' s';
+        if (sec < 3600) return Math.floor(sec / 60) + ' min ' + (sec % 60) + ' s';
+        return Math.floor(sec / 3600) + ' h ' + Math.floor((sec % 3600) / 60) + ' min';
+    }
+
+    function fileVideoType(file) {
+        if (file.type && file.type.indexOf('video/') === 0) return file.type;
+        var dot = file.name.lastIndexOf('.');
+        if (dot < 0) return '';
+        return VIDEO_EXT_TYPES[file.name.slice(dot + 1).toLowerCase()] || '';
+    }
+
+    function stripExt(name) {
+        var dot = name.lastIndexOf('.');
+        return dot > 0 ? name.slice(0, dot) : name;
+    }
+
+    function slugifyId(s) {
+        return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 60).replace(/-+$/, '');
+    }
+
+    function videoIdTaken(id, except) {
+        for (var i = 0; i < allVideos.length; i++) if (allVideos[i].video_id === id) return true;
+        for (var j = 0; j < uploadQueue.length; j++) {
+            var it = uploadQueue[j];
+            if (it !== except && it.status !== 'cancelled' && it.status !== 'done' && it.videoId === id) return true;
+        }
+        return false;
+    }
+
+    function uniqueVideoId(base, item) {
+        base = base || 'video';
+        var id = base, n = 2;
+        while (videoIdTaken(id, item)) id = base + '-' + (n++);
+        return id;
+    }
+
+    function addUploadFiles(files) {
+        if (!GCS_ENABLED) { showToast('La subida está desactivada: falta GCS_BUCKET', 'error'); return; }
+        for (var i = 0; i < files.length; i++) {
+            var f = files[i];
+            var type = fileVideoType(f);
+            if (!type) { showToast('"' + f.name + '" no es un vídeo', 'error'); continue; }
+            if (f.size === 0) { showToast('"' + f.name + '" está vacío', 'error'); continue; }
+            if (f.size > UPLOAD_MAX) { showToast('"' + f.name + '" pesa más de 5 GB', 'error'); continue; }
+            var title = stripExt(f.name).trim() || f.name;
+            var item = { n: ++uploadSeq, file: f, type: type, title: title, status: 'pending', idEdited: false };
+            item.videoId = uniqueVideoId(slugifyId(title), item);
+            uploadQueue.push(item);
+            buildUploadItem(item);
+        }
+    }
+
+    function buildUploadItem(item) {
+        var el = document.createElement('div');
+        el.className = 'upload-item';
+        el.innerHTML =
+            '<div class="ui-head">' +
+                '<span><span class="ui-name"></span> <span class="ui-state"></span></span>' +
+                '<button type="button" class="btn btn-delete btn-sm ui-cancel">Quitar</button>' +
+            '</div>' +
+            '<div class="ui-form">' +
+                '<div class="field"><label>Título</label><input type="text" class="input-field ui-title" maxlength="200"></div>' +
+                '<div class="field"><label>ID del vídeo</label><input type="text" class="input-field mono ui-vid" maxlength="80" autocapitalize="off" spellcheck="false"></div>' +
+                '<div><button type="button" class="btn-submit ui-go" style="width: auto;">Subir</button></div>' +
+            '</div>' +
+            '<div class="ui-progress" style="display: none;">' +
+                '<div class="progress-bar-container"><div class="progress-bar">0%</div></div>' +
+                '<div class="progress-stats"></div>' +
+            '</div>' +
+            '<div class="ui-msg"></div>';
+        item.el = el;
+        item.q = function(sel) { return el.querySelector(sel); };
+        item.q('.ui-name').textContent = item.file.name;
+        item.q('.ui-title').value = item.title;
+        item.q('.ui-vid').value = item.videoId;
+        setUploadState(item, formatSize(item.file.size) + ' · revisa título e ID y pulsa Subir');
+
+        item.q('.ui-title').addEventListener('input', function() {
+            item.title = this.value;
+            if (!item.idEdited) {
+                item.videoId = uniqueVideoId(slugifyId(item.title), item);
+                item.q('.ui-vid').value = item.videoId;
+            }
+        });
+        item.q('.ui-vid').addEventListener('input', function() {
+            item.idEdited = true;
+            item.videoId = this.value.trim();
+            setUploadMsg(item, validateUploadItem(item), true);
+        });
+        [item.q('.ui-title'), item.q('.ui-vid')].forEach(function(inp) {
+            inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); queueUploadItem(item); } });
+        });
+        item.q('.ui-go').addEventListener('click', function() { queueUploadItem(item); });
+        item.q('.ui-cancel').addEventListener('click', function() { cancelUploadItem(item); });
+        $('upload-queue').appendChild(el);
+        item.q('.ui-title').focus();
+        item.q('.ui-title').select();
+    }
+
+    function setUploadState(item, text) { item.q('.ui-state').textContent = text; }
+
+    function setUploadMsg(item, text, isError) {
+        var m = item.q('.ui-msg');
+        m.className = 'ui-msg' + (isError ? ' err' : '');
+        m.textContent = text || '';
+    }
+
+    function setUploadFormEnabled(item, enabled) {
+        item.q('.ui-title').disabled = !enabled;
+        item.q('.ui-vid').disabled = !enabled;
+        item.q('.ui-go').disabled = !enabled;
+        item.q('.ui-go').style.display = enabled ? '' : 'none';
+    }
+
+    function validateUploadItem(item) {
+        if (!item.title.trim()) return 'Pon un título.';
+        if (!VIDEO_ID_RE.test(item.videoId)) return 'El ID solo puede llevar minúsculas, números y guiones (sin espacios ni acentos).';
+        if (videoIdTaken(item.videoId, item)) return 'Ya existe un vídeo con el ID "' + item.videoId + '".';
+        return '';
+    }
+
+    function queueUploadItem(item) {
+        if (item.status !== 'pending') return;
+        item.title = item.q('.ui-title').value.trim();
+        item.videoId = item.q('.ui-vid').value.trim();
+        var err = validateUploadItem(item);
+        if (err) { setUploadMsg(item, err, true); item.q('.ui-vid').focus(); return; }
+        setUploadMsg(item, '');
+        item.status = 'ready';
+        item.el.className = 'upload-item';
+        setUploadFormEnabled(item, false);
+        item.q('.ui-cancel').textContent = 'Cancelar';
+        setUploadState(item, formatSize(item.file.size) + ' · en cola');
+        pumpUploadQueue();
+    }
+
+    function pumpUploadQueue() {
+        if (uploadRunning) return;
+        var next = null;
+        for (var i = 0; i < uploadQueue.length; i++) if (uploadQueue[i].status === 'ready') { next = uploadQueue[i]; break; }
+        if (!next) return;
+        uploadRunning = true;
+        runUpload(next).then(function() {
+            uploadRunning = false;
+            pumpUploadQueue();
+        });
+    }
+
+    function cancelUploadItem(item) {
+        if (item.status === 'uploading') {
+            if (!confirm('¿Cancelar la subida de "' + item.file.name + '"?')) return;
+            item.status = 'cancelled';
+            if (item.xhr) item.xhr.abort();
+            if (item.wake) item.wake();
+            return; // runUpload lo quita de la cola
+        }
+        item.status = 'cancelled';
+        removeUploadItem(item);
+    }
+
+    function removeUploadItem(item) {
+        var i = uploadQueue.indexOf(item);
+        if (i >= 0) uploadQueue.splice(i, 1);
+        if (item.el && item.el.parentNode) item.el.parentNode.removeChild(item.el);
+    }
+
+    function uploadCancelled() { var e = new Error('Subida cancelada'); e.cancelled = true; return e; }
+
+    function postJSON(url, body) {
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(checkAuth)
+            .then(function(r) {
+                return r.json().catch(function() { return {}; }).then(function(d) {
+                    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+                    return d;
+                });
+            });
+    }
+
+    function uploadSleep(item, ms) {
+        return new Promise(function(resolve) {
+            var t = setTimeout(function() { item.wake = null; resolve(); }, ms);
+            item.wake = function() { clearTimeout(t); item.wake = null; resolve(); };
+        });
+    }
+
+    // PUT al session_url de GCS. blob = null => consulta de estado (cuerpo vacío).
+    function putToSession(item, blob, contentRange, baseOffset) {
+        return new Promise(function(resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            item.xhr = xhr;
+            xhr.open('PUT', item.session);
+            xhr.setRequestHeader('Content-Range', contentRange);
+            if (blob) {
+                xhr.upload.onprogress = function(e) { updateUploadProgress(item, baseOffset + e.loaded); };
+            }
+            xhr.onload = function() {
+                item.xhr = null;
+                resolve({ status: xhr.status, range: xhr.getResponseHeader('Range'), body: xhr.responseText || '' });
+            };
+            xhr.onerror = xhr.ontimeout = function() { item.xhr = null; reject(new Error('error de red')); };
+            xhr.onabort = function() { item.xhr = null; reject(uploadCancelled()); };
+            xhr.send(blob);
+        });
+    }
+
+    // "bytes=0-16777215" => 16777216 (siguiente byte a enviar). Sin cabecera => 0.
+    function rangeNext(h) {
+        var m = /bytes=0-(\d+)/.exec(h || '');
+        return m ? parseInt(m[1], 10) + 1 : 0;
+    }
+
+    function updateUploadProgress(item, bytes) {
+        var size = item.file.size;
+        bytes = Math.max(0, Math.min(bytes, size));
+        var now = Date.now();
+        var s = item.samples;
+        s.push({ t: now, b: bytes });
+        while (s.length > 2 && now - s[0].t > 8000) s.shift();
+        var speed = 0;
+        if (s.length > 1 && s[s.length - 1].t > s[0].t) speed = (s[s.length - 1].b - s[0].b) / ((s[s.length - 1].t - s[0].t) / 1000);
+        var pct = Math.floor(bytes / size * 1000) / 10;
+        var bar = item.q('.progress-bar');
+        bar.style.width = pct + '%';
+        bar.textContent = pct.toFixed(1) + '%';
+        var txt = formatSize(bytes) + ' de ' + formatSize(size);
+        if (speed > 0) txt += ' · ' + formatSize(speed) + '/s · quedan ~' + formatEta((size - bytes) / speed);
+        item.q('.progress-stats').textContent = txt;
+    }
+
+    async function sendFileToGCS(item) {
+        var size = item.file.size, offset = 0, retries = 0, noProgress = 0;
+        var sessionGone = 'La sesión de subida ha caducado o ya no existe. Pulsa Subir para empezar de nuevo.';
+        item.samples = [];
+        // Al reanudar una sesión existente, primero pregunta hasta dónde llegó.
+        if (item.resumed) {
+            try {
+                var st0 = await putToSession(item, null, 'bytes */' + size, 0);
+                if (st0.status === 200 || st0.status === 201) { updateUploadProgress(item, size); return; }
+                if (st0.status === 308) offset = rangeNext(st0.range);
+                else if (st0.status === 404 || st0.status === 410) { item.session = null; throw new Error(sessionGone); }
+            } catch (e) {
+                if (e.cancelled || item.status === 'cancelled') throw uploadCancelled();
+                if (e.message === sessionGone) throw e;
+            }
+        }
+        updateUploadProgress(item, offset);
+        while (true) {
+            if (item.status === 'cancelled') throw uploadCancelled();
+            var end = Math.min(offset + UPLOAD_CHUNK, size);
+            var res = null;
+            setUploadState(item, formatSize(size) + ' · subiendo…');
+            try {
+                // File.slice: solo se lee del disco el trozo actual, nunca el archivo entero.
+                res = await putToSession(item, item.file.slice(offset, end), 'bytes ' + offset + '-' + (end - 1) + '/' + size, offset);
+            } catch (e) {
+                if (e.cancelled || item.status === 'cancelled') throw uploadCancelled();
+            }
+            if (res && (res.status === 200 || res.status === 201)) { updateUploadProgress(item, size); return; }
+            if (res && res.status === 308) {
+                var next = rangeNext(res.range);
+                if (next > offset) { noProgress = 0; retries = 0; }
+                else if (++noProgress >= 3) {
+                    throw new Error('Google Cloud Storage no confirma los datos recibidos (falta la cabecera Range). ' +
+                        'Revisa el CORS del bucket: responseHeader debe incluir "Range".');
+                }
+                offset = next;
+                updateUploadProgress(item, offset);
+                continue;
+            }
+            if (res && (res.status === 404 || res.status === 410)) { item.session = null; throw new Error(sessionGone); }
+            if (res && res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+                item.session = null;
+                throw new Error('Google Cloud Storage rechazó la subida (HTTP ' + res.status + '). ' + res.body.slice(0, 200));
+            }
+            // Error de red, 5xx, 408 o 429: espera exponencial y pregunta a GCS hasta dónde llegó.
+            if (++retries > UPLOAD_MAX_RETRIES) {
+                throw new Error('No se pudo continuar la subida tras ' + UPLOAD_MAX_RETRIES + ' reintentos (sin conexión o error de Google).' +
+                    (offset === 0 ? ' Si falla desde el principio, revisa el CORS del bucket.' : ' Pulsa Reanudar para seguir donde se quedó.'));
+            }
+            var wait = Math.min(1000 * Math.pow(2, retries - 1), 60000) + Math.random() * 1000;
+            setUploadState(item, formatSize(size) + ' · ' + (res ? 'error ' + res.status : 'error de red') +
+                '; reintento ' + retries + '/' + UPLOAD_MAX_RETRIES + ' en ' + Math.round(wait / 1000) + ' s…');
+            await uploadSleep(item, wait);
+            if (item.status === 'cancelled') throw uploadCancelled();
+            try {
+                var st = await putToSession(item, null, 'bytes */' + size, offset);
+                if (st.status === 200 || st.status === 201) { updateUploadProgress(item, size); return; }
+                if (st.status === 308) { offset = rangeNext(st.range); updateUploadProgress(item, offset); }
+                else if (st.status === 404 || st.status === 410) { item.session = null; throw new Error(sessionGone); }
+            } catch (e) {
+                if (e.cancelled || item.status === 'cancelled') throw uploadCancelled();
+                if (e.message === sessionGone) throw e;
+                // Sigue sin conexión: el bucle vuelve a intentarlo.
+            }
+        }
+    }
+
+    async function runUpload(item) {
+        item.status = 'uploading';
+        item.q('.ui-cancel').textContent = 'Cancelar';
+        item.q('.ui-progress').style.display = '';
+        item.q('.progress-bar').style.backgroundColor = '';
+        setUploadMsg(item, '');
+        try {
+            if (!item.uploaded) {
+                item.resumed = !!item.session;
+                if (!item.session) {
+                    setUploadState(item, formatSize(item.file.size) + ' · preparando…');
+                    var start = await postJSON('/api/upload/start', {
+                        filename: item.file.name, size: item.file.size, content_type: item.type,
+                        title: item.title, video_id: item.videoId
+                    });
+                    item.session = start.session_url;
+                    item.object = start.object;
+                }
+                await sendFileToGCS(item);
+                item.uploaded = true;
+            }
+            if (item.status === 'cancelled') throw uploadCancelled();
+            setUploadState(item, formatSize(item.file.size) + ' · registrando el vídeo…');
+            var video = await postJSON('/api/upload/complete', { object: item.object, title: item.title, video_id: item.videoId });
+            item.status = 'done';
+            item.el.className = 'upload-item done';
+            item.q('.progress-bar').style.backgroundColor = '#27ae60';
+            setUploadState(item, formatSize(item.file.size) + ' · subido');
+            item.q('.ui-cancel').textContent = 'Cerrar';
+            setUploadMsg(item, '');
+            var msg = item.q('.ui-msg');
+            msg.innerHTML = '<strong>Vídeo «' + escapeHtml(video.title) + '» creado</strong> con ID <span class="mono">' +
+                escapeHtml(video.video_id) + '</span>. ';
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-primary btn-sm';
+            btn.textContent = 'Crear enlace para compartir';
+            btn.onclick = function() { shareUploadedVideo(video.video_id); };
+            msg.appendChild(btn);
+            var exists = false;
+            for (var i = 0; i < allVideos.length; i++) if (allVideos[i].video_id === video.video_id) exists = true;
+            if (!exists) allVideos.unshift(video);
+            renderVideosTable(allVideos);
+            updateShareVideoSelect();
+            document.getElementById('total-videos').textContent = allVideos.length;
+            showToast('Vídeo subido y creado: ' + video.title, 'success');
+            refreshDataNow();
+        } catch (err) {
+            if (err.cancelled || item.status === 'cancelled') {
+                item.status = 'cancelled';
+                removeUploadItem(item);
+                showToast('Subida cancelada', 'error');
+                return;
+            }
+            // Vuelve a "pendiente": se puede corregir título/ID y reintentar (reanuda si la sesión sigue viva).
+            item.status = 'pending';
+            item.el.className = 'upload-item error';
+            setUploadFormEnabled(item, true);
+            item.q('.ui-go').textContent = item.uploaded ? 'Reintentar registro' : (item.session ? 'Reanudar' : 'Subir');
+            item.q('.ui-cancel').textContent = 'Quitar';
+            setUploadState(item, formatSize(item.file.size) + ' · error');
+            setUploadMsg(item, err.message, true);
+            showToast('Error en la subida: ' + err.message, 'error');
+        }
+    }
+
+    function shareUploadedVideo(videoId) {
+        if (editingShareId !== null) cancelShareEdit();
+        updateShareVideoSelect();
+        $('share-video').value = videoId;
+        updateSharePreview();
+        $('share-result').style.display = 'none';
+        $('shares-card').scrollIntoView({ behavior: 'smooth' });
+        setTimeout(function() { $('share-recipient').focus(); }, 400);
+    }
+
+    window.addEventListener('beforeunload', function(e) {
+        for (var i = 0; i < uploadQueue.length; i++) {
+            if (uploadQueue[i].status === 'uploading' || uploadQueue[i].status === 'ready') {
+                e.preventDefault();
+                e.returnValue = 'Hay una subida de vídeo en curso. Si sales se cancelará.';
+                return e.returnValue;
+            }
         }
     });
 
-    function handleFileSelect(input) {
-        var file = input.files[0];
-        if (!file) return;
-        document.getElementById('selectedFileName').textContent = file.name + ' (' + formatSize(file.size) + ')';
-        fetch('/api/upload/presign', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: file.name, content_type: file.type || 'video/mp4' })
-        })
-        .then(function(response) { if (!response.ok) throw new Error('Failed to get upload URL'); return response.json(); })
-        .then(function(presignData) {
-            document.getElementById('uploadProgress').style.display = 'block';
-            return uploadToS3(presignData.presigned_url, file, presignData.object_url);
-        })
-        .catch(function(err) {
-            showToast('Upload error: ' + err.message, 'error');
-            document.getElementById('uploadProgress').style.display = 'none';
+    // Soltar un archivo fuera de la zona no debe abrirlo en la pestaña (se perdería la subida).
+    window.addEventListener('dragover', function(e) { e.preventDefault(); });
+    window.addEventListener('drop', function(e) { e.preventDefault(); });
+
+    if (GCS_ENABLED) {
+        var dropzone = $('dropzone');
+        var fileInput = $('upload-file-input');
+        var dragDepth = 0;
+        dropzone.addEventListener('click', function() { fileInput.click(); });
+        dropzone.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+        });
+        dropzone.addEventListener('dragenter', function(e) { e.preventDefault(); dragDepth++; dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+        dropzone.addEventListener('dragleave', function() { if (--dragDepth <= 0) { dragDepth = 0; dropzone.classList.remove('dragover'); } });
+        dropzone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dragDepth = 0;
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer && e.dataTransfer.files.length) addUploadFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', function() {
+            addUploadFiles(this.files);
+            this.value = '';
         });
     }
-
-    function uploadToS3(presignedUrl, file, objectUrl) {
-        return new Promise(function(resolve, reject) {
-            var xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', function(e) {
-                if (e.lengthComputable) {
-                    var percent = Math.round((e.loaded / e.total) * 100);
-                    var bar = document.getElementById('progressBar');
-                    bar.style.width = percent + '%';
-                    bar.textContent = percent + '%';
-                    document.getElementById('uploadStatus').textContent = 'Uploading... ' + formatSize(e.loaded) + ' / ' + formatSize(e.total);
-                }
-            });
-            xhr.addEventListener('load', function() {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    document.getElementById('uploadStatus').textContent = 'Upload complete!';
-                    document.getElementById('progressBar').style.backgroundColor = '#27ae60';
-                    document.getElementById('videoUrl').value = objectUrl;
-                    showToast('Video uploaded to S3!', 'success');
-                    resolve();
-                } else { reject(new Error('Upload failed with status ' + xhr.status)); }
-            });
-            xhr.addEventListener('error', function() { reject(new Error('Network error during upload')); });
-            xhr.open('PUT', presignedUrl);
-            xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-            xhr.send(file);
-        });
-    }
-
-    function formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-        return (bytes / 1073741824).toFixed(1) + ' GB';
-    }
-    {{end}}
 </script>
 </body>
 </html>

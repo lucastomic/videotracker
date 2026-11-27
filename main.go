@@ -1,10 +1,8 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"log"
 	"net"
@@ -14,9 +12,6 @@ import (
 	"strings"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -43,10 +38,6 @@ type Video struct {
 
 var db *sql.DB
 var templates *template.Template
-var s3Client *s3.Client
-var s3Bucket string
-var s3Region string
-var s3Enabled bool
 
 // loggingMiddleware logs all HTTP requests
 func loggingMiddleware(handler http.HandlerFunc) http.HandlerFunc {
@@ -108,29 +99,7 @@ func main() {
 	// Create tables
 	createTables()
 
-	// Initialize S3 client if configured
-	s3Bucket = os.Getenv("S3_BUCKET")
-	s3Region = os.Getenv("S3_REGION")
-	awsAccessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	if s3Bucket != "" && s3Region != "" && awsAccessKey != "" && awsSecretKey != "" {
-		cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-			awsconfig.WithRegion(s3Region),
-			awsconfig.WithCredentialsProvider(
-				credentials.NewStaticCredentialsProvider(awsAccessKey, awsSecretKey, ""),
-			),
-		)
-		if err != nil {
-			log.Printf("WARNING: Failed to configure AWS: %v", err)
-		} else {
-			s3Client = s3.NewFromConfig(cfg)
-			s3Enabled = true
-			log.Printf("S3 upload enabled - Bucket: %s, Region: %s", s3Bucket, s3Region)
-		}
-	} else {
-		log.Println("S3 upload disabled - missing environment variables (S3_BUCKET, S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)")
-	}
+	configureGCS()
 
 	// Thumbnails for share links live next to the database (/app/data/og).
 	ogDir = os.Getenv("OG_DIR")
@@ -180,7 +149,8 @@ func newRouter() *http.ServeMux {
 	mux.HandleFunc("/api/admin/", api(func(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusNotFound, "no encontrado")
 	}))
-	mux.HandleFunc("/api/upload/presign", api(handlePresignUpload))
+	mux.HandleFunc("/api/upload/start", api(handleUploadStart))
+	mux.HandleFunc("/api/upload/complete", api(handleUploadComplete))
 	return mux
 }
 
@@ -500,13 +470,17 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Loaded %d sessions and %d videos for admin dashboard", len(sessions), len(videos))
 
 	data := struct {
-		Sessions  []Session
-		Videos    []Video
-		S3Enabled bool
+		Sessions   []Session
+		Videos     []Video
+		GCSEnabled bool
+		GCSBucket  string
 	}{
-		Sessions:  sessions,
-		Videos:    videos,
-		S3Enabled: s3Enabled,
+		Sessions:   sessions,
+		Videos:     videos,
+		GCSEnabled: gcs != nil,
+	}
+	if gcs != nil {
+		data.GCSBucket = gcs.bucket
 	}
 
 	err = templates.ExecuteTemplate(w, "admin_standalone.html", data)
@@ -745,75 +719,13 @@ func handleAdminData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := struct {
-		Sessions  []Session `json:"sessions"`
-		Videos    []Video   `json:"videos"`
-		S3Enabled bool      `json:"s3_enabled"`
+		Sessions   []Session `json:"sessions"`
+		Videos     []Video   `json:"videos"`
+		GCSEnabled bool      `json:"gcs_enabled"`
 	}{
-		Sessions:  sessions,
-		Videos:    videos,
-		S3Enabled: s3Enabled,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// handlePresignUpload generates a presigned S3 PUT URL for direct browser upload
-func handlePresignUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if !s3Enabled {
-		http.Error(w, "S3 upload not configured", http.StatusServiceUnavailable)
-		return
-	}
-
-	var req struct {
-		Filename    string `json:"filename"`
-		ContentType string `json:"content_type"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if req.Filename == "" {
-		http.Error(w, "filename is required", http.StatusBadRequest)
-		return
-	}
-	if req.ContentType == "" {
-		req.ContentType = "video/mp4"
-	}
-
-	// Generate unique S3 key
-	objectKey := fmt.Sprintf("videos/%d-%s", time.Now().UnixNano(), req.Filename)
-
-	// Create presigned PUT URL
-	presignClient := s3.NewPresignClient(s3Client)
-	presignResult, err := presignClient.PresignPutObject(r.Context(), &s3.PutObjectInput{
-		Bucket:      &s3Bucket,
-		Key:         &objectKey,
-		ContentType: &req.ContentType,
-	}, s3.WithPresignExpires(15*time.Minute))
-	if err != nil {
-		log.Printf("ERROR: Failed to create presigned URL: %v", err)
-		http.Error(w, "Failed to create upload URL", http.StatusInternalServerError)
-		return
-	}
-
-	// Build the final object URL
-	objectURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", s3Bucket, s3Region, objectKey)
-
-	resp := struct {
-		PresignedURL string `json:"presigned_url"`
-		ObjectURL    string `json:"object_url"`
-		ExpiresIn    int    `json:"expires_in"`
-	}{
-		PresignedURL: presignResult.URL,
-		ObjectURL:    objectURL,
-		ExpiresIn:    900,
+		Sessions:   sessions,
+		Videos:     videos,
+		GCSEnabled: gcs != nil,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
